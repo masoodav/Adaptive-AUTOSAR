@@ -8,6 +8,7 @@
 #include "./state_management.h"
 #include "./platform_health_management.h"
 #include "./diagnostic_manager.h"
+#include "../simple_app.h"
 
 /// @brief AUTOSAR application namespace
 namespace application
@@ -28,6 +29,7 @@ namespace application
             PlatformHealthManagement mPlatformHealthManager;
             ExtendedVehicle mExtendedVehicle;
             DiagnosticManager mDiagnosticManager;
+            SimpleApp mSimpleApp;
             ara::exec::StateServer *mStateServer;
 
             static helper::RpcConfiguration getRpcConfiguration(

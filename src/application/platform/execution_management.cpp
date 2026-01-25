@@ -16,6 +16,7 @@ namespace application
                                                                                       mPlatformHealthManager(poller, &mCommunicator, cMachineFunctionGroup),
                                                                                       mExtendedVehicle(poller, &mCommunicator),
                                                                                       mDiagnosticManager(poller),
+                                                                                      mSimpleApp(poller, &mCommunicator),
                                                                                       mStateServer{nullptr}
         {
         }
@@ -127,6 +128,7 @@ namespace application
                 mPlatformHealthManager.Initialize(arguments);
                 mDiagnosticManager.Initialize(arguments);
                 mExtendedVehicle.Initialize(arguments);
+                mSimpleApp.Initialize(arguments);
             }
         }
 
@@ -180,6 +182,7 @@ namespace application
                 int _dmTerminationResult{mDiagnosticManager.Terminate()};
                 int _phmTerminationResult{mPlatformHealthManager.Terminate()};
                 int _smTerminationResult{mStateManagement.Terminate()};
+                int _saTerminationResult{mSimpleApp.Terminate()};
 
                 _logStream.Flush();
                 _logStream << "Execution management has been terminated.";
@@ -209,6 +212,7 @@ namespace application
             mDiagnosticManager.Terminate();
             mPlatformHealthManager.Terminate();
             mStateManagement.Terminate();
+            mSimpleApp.Terminate();
 
             if (mStateServer)
                 delete mStateServer;

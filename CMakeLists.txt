@@ -522,6 +522,8 @@ add_executable(
   ${source_application_platform_dir}/diagnostic_manager.cpp
   ${source_application_platform_dir}/platform_health_management.h
   ${source_application_platform_dir}/platform_health_management.cpp
+  ${source_application_dir}//simple_app.h
+  ${source_application_dir}//simple_app.cpp
 )
 
 target_link_libraries(
