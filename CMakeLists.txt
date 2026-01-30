@@ -243,9 +243,11 @@ add_library(
   ara_log
   ${source_ara_log_dir}/argument.h
   ${source_ara_log_dir}/log_stream.h
-  ${source_ara_log_dir}/log_stream.cpp
+  # ${source_ara_log_dir}/log_stream.cpp
   ${source_ara_log_dir}/logger.h
-  ${source_ara_log_dir}/logger.cpp
+  # ${source_ara_log_dir}/logger.cpp
+  ${source_ara_log_dir}/log_fwd.h
+  ${source_ara_log_dir}/ara_log.cpp
   ${source_ara_log_dir}/logging_framework.h
   ${source_ara_log_dir}/logging_framework.cpp
   ${source_ara_log_sink_dir}/console_log_sink.h

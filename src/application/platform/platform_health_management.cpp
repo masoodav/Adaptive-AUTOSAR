@@ -294,8 +294,6 @@ namespace application
             const std::string cConfigArgument{
                 helper::ArgumentConfiguration::cPhmConfigArgument};
 
-            ara::log::LogStream _logStream;
-
             try
             {
                 const std::string cConfigFilepath{arguments.at(cConfigArgument)};
@@ -318,8 +316,8 @@ namespace application
                         this, std::placeholders::_1)};
                 mGlobalSupervision->SetCallback(_onGlobalStatusChanged);
 
-                _logStream << "Plafrom health management has been initialized.";
-                Log(cLogLevel, _logStream);
+                // FIX: Standard API
+                mLogger.WithLevel(cLogLevel) << "Plafrom health management has been initialized.";
 
                 bool _running{true};
 
@@ -329,17 +327,16 @@ namespace application
                 }
 
                 mCheckpointCommunicator->ResetCallback();
-                _logStream.Flush();
-                _logStream << "Plafrom health management has been terminated.";
-                Log(cLogLevel, _logStream);
+                
+                // FIX: Standard API
+                mLogger.WithLevel(cLogLevel) << "Plafrom health management has been terminated.";
 
                 return cSuccessfulExitCode;
             }
             catch (const std::runtime_error &ex)
             {
-                _logStream.Flush();
-                _logStream << ex.what();
-                Log(cErrorLevel, _logStream);
+                // FIX: Standard API
+                mLogger.WithLevel(cErrorLevel) << ex.what();
 
                 return cUnsuccessfulExitCode;
             }

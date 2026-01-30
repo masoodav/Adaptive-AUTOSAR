@@ -54,9 +54,8 @@ namespace application
                             future.get();
                             future = Future{};
 
-                            ara::log::LogStream _logStream;
-                            _logStream << message;
-                            Log(cLogLevel, _logStream);
+                            // FIX: Use standard API via mLogger (protected in base)
+                            mLogger.WithLevel(cLogLevel) << message;
                         }
                     }
                     catch (const ara::exec::ExecException &ex)

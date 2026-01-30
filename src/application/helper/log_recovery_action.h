@@ -19,7 +19,9 @@ namespace application
             static const ara::log::LogLevel cErrorLevel;
 
             ara::log::LoggingFramework *mLoggingFramework;
-            ara::log::Logger mLogger;
+            
+            // FIX: Hold logger by reference (non-copyable)
+            const ara::log::Logger& mLogger;
 
         public:
             LogRecoveryAction();

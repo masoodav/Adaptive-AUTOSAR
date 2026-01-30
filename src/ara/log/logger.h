@@ -1,83 +1,111 @@
-#ifndef LOGGER_H
-#define LOGGER_H
+#ifndef ARA_LOG_LOGGER_H
+#define ARA_LOG_LOGGER_H
 
+#include <functional>
+#include <tuple>
+#include <atomic> 
+#include "./common.h"
 #include "./log_stream.h"
 
-namespace ara
-{
-    namespace log
-    {
-        /// @brief Logger of a specific context
-        class Logger
-        {
-        private:
-            std::string mContextId;
-            std::string mContextDescription;
-            LogLevel mContextDefaultLogLevel;
-            Logger(std::string ctxId,
-                   std::string ctxDescription,
-                   LogLevel ctxDefLogLevel);
+namespace ara {
+namespace log {
 
-        public:
-            Logger() = delete;
-            ~Logger() noexcept = default;
+class LoggerManager; 
 
-            /// @brief Remote logging client connection state
-            /// @returns Client connection state
-            ClientState RemoteClientState() const noexcept;
+using ConnectionStateHandler = std::function<void(ClientState)>;
 
-            /// @brief Create a stream for fatal logs
-            /// @returns Fatal log stream in the current context
-            /// @see WithLevel
-            LogStream LogFatal() const;
+enum class Fmt : std::uint16_t {
+    kDefault = 0,
+    kDec = 1,
+    kOct = 2,
+    kHex = 3,
+    kBin = 4,
+    kDecFloat = 5,
+    kEngFloat = 6,
+    kHexFloat = 7,
+    kAutoFloat = 8
+};
 
-            /// @brief Create a stream for error logs
-            /// @returns Error log stream in the current context
-            /// @see WithLevel
-            LogStream LogError() const;
+struct Format final {
+    Fmt fmt;
+    std::uint16_t precision;
+};
 
-            /// @brief Create a stream for warning logs
-            /// @returns Warning log stream in the current context
-            /// @see WithLevel
-            LogStream LogWarn() const;
+template <typename T>
+class Argument final {
+public:
+    Argument(T&& arg, const char* name, const char* unit, Format fmt)
+        : value(std::forward<T>(arg)), name_(name), unit_(unit), format_(fmt) {}
+    
+    const T& value;
+    const char* name_;
+    const char* unit_;
+    Format format_;
+};
 
-            /// @brief Create a stream for information logs
-            /// @returns Information log stream in the current context
-            /// @see WithLevel
-            LogStream LogInfo() const;
+constexpr Format Dflt() noexcept { return {Fmt::kDefault, 0}; }
+constexpr Format Dec(std::uint16_t precision = 0) noexcept { return {Fmt::kDec, precision}; }
+constexpr Format Hex(std::uint16_t precision = 0) noexcept { return {Fmt::kHex, precision}; }
+constexpr Format Bin(std::uint16_t precision = 0) noexcept { return {Fmt::kBin, precision}; }
+constexpr Format Oct(std::uint16_t precision = 0) noexcept { return {Fmt::kOct, precision}; }
+constexpr Format AutoFloat(std::uint16_t precision = 6) noexcept { return {Fmt::kAutoFloat, precision}; }
 
-            /// @brief Create a stream for debug logs
-            /// @returns Debug log stream in the current context
-            /// @see WithLevel
-            LogStream LogDebug() const;
-
-            /// @brief Create a stream for verbose logs
-            /// @returns Verbose log stream in the current context
-            /// @see WithLevel
-            LogStream LogVerbose() const;
-
-            /// @brief Determine whether a certian log level is enabled in the current context or not
-            /// @param logLevel Input log severity level
-            /// @returns True if the level is enabled; otherwise false
-            bool IsEnabled(LogLevel logLevel) const noexcept;
-
-            /// @brief Create a stream for certian level logs
-            /// @param logLevel Input log severity level
-            /// @returns Log stream with the determined level in the current context
-            LogStream WithLevel(LogLevel logLevel) const;
-
-            /// @brief Logger factory
-            /// @param ctxId Context ID
-            /// @param ctxDescription Context description
-            /// @param ctxDefLogLevel Context default log level
-            /// @returns A new logger for that specifc context
-            /// @note Log with less severity than the default log level are ignored.
-            static Logger CreateLogger(
-                std::string ctxId,
-                std::string ctxDescription,
-                LogLevel ctxDefLogLevel);
-        };
-    }
+template <typename T>
+Argument<T> Arg(T&& arg, const char* name = nullptr, const char* unit = nullptr, Format format = Dflt()) noexcept {
+    return Argument<T>(std::forward<T>(arg), name, unit, format);
 }
 
-#endif
+// [SWS_LOG_00172] Definition of API class ara::log::Logger
+class Logger final {
+public:
+    Logger() = delete;
+    Logger(const Logger&) = delete;            // Non-copyable
+    Logger& operator=(const Logger&) = delete; // Non-assignable
+
+    // FIX: Move Constructor is required for std::vector<Logger> usage in LoggingFramework
+    Logger(Logger&& other) noexcept; 
+
+    ~Logger();
+
+    bool IsEnabled(LogLevel logLevel) const noexcept;
+
+    template <typename MsgId, typename... Params>
+    void Log(const MsgId& id, const Params&... args) noexcept {
+    }
+
+    LogStream LogFatal() const noexcept;
+    LogStream LogError() const noexcept;
+    LogStream LogWarn() const noexcept;
+    LogStream LogInfo() const noexcept;
+    LogStream LogDebug() const noexcept;
+    LogStream LogVerbose() const noexcept;
+    
+    LogStream WithLevel(LogLevel logLevel) const noexcept;
+
+    template <typename... Attrs, typename MsgId, typename... Params>
+    void LogWith(const std::tuple<Attrs...>& attrs, const MsgId& msgId, const Params&... params) noexcept {
+    }
+
+    void SetThreshold(LogLevel threshold) noexcept;
+
+private:
+    friend Logger& CreateLogger(core::StringView ctxId, core::StringView ctxDesc, LogLevel level) noexcept;
+    friend Logger& CreateLogger(const core::InstanceSpecifier& is) noexcept;
+    friend class LoggerManager; 
+
+    Logger(const std::string& ctxId, const std::string& ctxDesc, LogLevel level);
+
+    std::string contextId_;
+    std::string contextDescription_;
+    std::atomic<LogLevel> currentLimit_; 
+};
+
+// Global API Functions
+Logger& CreateLogger(core::StringView ctxId, core::StringView ctxDescription, LogLevel ctxDefLogLevel = LogLevel::kWarn) noexcept;
+Logger& CreateLogger(const core::InstanceSpecifier& is) noexcept;
+void RegisterConnectionStateHandler(ConnectionStateHandler callback) noexcept;
+
+} // namespace log
+} // namespace ara
+
+#endif // ARA_LOG_LOGGER_H

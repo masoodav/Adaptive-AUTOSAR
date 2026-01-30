@@ -12,6 +12,7 @@ namespace application
 
         LogRecoveryAction::LogRecoveryAction() : ara::phm::RecoveryAction(cInstance),
                                                  mLoggingFramework{ara::log::LoggingFramework::Create(cInstance.ToString(), cLogMode)},
+                                                 // FIX: Initialize reference directly
                                                  mLogger{mLoggingFramework->CreateLogger(cContextId, cContextDescription, cErrorLevel)}
         {
         }
@@ -25,16 +26,17 @@ namespace application
             if (IsOffered() &&
                 executionError.executionError == cExtendedVehicleExpiration)
             {
-                ara::log::LogStream _logStream;
+                // FIX: Use standard API (LogError creates a stream)
+                auto logStream = mLogger.LogError();
 
                 switch (supervision)
                 {
                 case ara::phm::TypeOfSupervision::AliveSupervision:
-                    _logStream << "Alive supervision";
+                    logStream << "Alive supervision";
                     break;
 
                 case ara::phm::TypeOfSupervision::DeadlineSupervision:
-                    _logStream << "Deadline supervision";
+                    logStream << "Deadline supervision";
                     break;
 
                 default:
@@ -42,10 +44,10 @@ namespace application
                     return;
                 }
 
-                _logStream << " is expired on "
-                           << executionError.functionGroup->GetInstance().ToString();
+                logStream << " is expired on "
+                          << executionError.functionGroup->GetInstance().ToString();
                 
-                mLoggingFramework->Log(mLogger, cErrorLevel, _logStream);
+                // Stream flushes automatically on destruction here
             }
         }
 

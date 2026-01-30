@@ -136,8 +136,6 @@ namespace application
             const std::atomic_bool *cancellationToken,
             const std::map<std::string, std::string> &arguments)
         {
-            ara::log::LogStream _logStream;
-
             try
             {
                 const std::string cConfigFilepath{
@@ -166,8 +164,8 @@ namespace application
                 mStateServer->SetNotifier(
                     cMachineFunctionGroup, _onStateChangeCallback);
 
-                _logStream << "Execution management has been initialized.";
-                Log(cLogLevel, _logStream);
+                // FIX: Standard API usage
+                mLogger.WithLevel(cLogLevel) << "Execution management has been initialized.";
 
                 mStateManagement.Initialize(arguments);
 
@@ -184,9 +182,8 @@ namespace application
                 int _smTerminationResult{mStateManagement.Terminate()};
                 int _saTerminationResult{mSimpleApp.Terminate()};
 
-                _logStream.Flush();
-                _logStream << "Execution management has been terminated.";
-                Log(cLogLevel, _logStream);
+                // FIX: Standard API usage
+                mLogger.WithLevel(cLogLevel) << "Execution management has been terminated.";
 
                 int _result{
                     _dmTerminationResult +
@@ -198,9 +195,8 @@ namespace application
             }
             catch (const std::runtime_error &ex)
             {
-                _logStream.Flush();
-                _logStream << ex.what();
-                Log(cErrorLevel, _logStream);
+                // FIX: Standard API usage
+                mLogger.WithLevel(cErrorLevel) << ex.what();
 
                 return cUnsuccessfulExitCode;
             }

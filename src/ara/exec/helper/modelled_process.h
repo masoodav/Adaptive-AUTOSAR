@@ -24,12 +24,15 @@ namespace ara
                 static const std::string cContextDescription;
 
                 log::LoggingFramework *mLoggingFramework;
-                log::Logger mLogger;
+                
                 DeterministicClient mDeterministicClient;
                 std::atomic_bool mCancellationToken;
                 std::future<int> mExitCode;
 
             protected:
+                // FIX: Moved mLogger to protected so derived classes (ExtendedVehicle) can use standard logging API
+                const log::Logger& mLogger;
+
                 /// @brief Information severity log level
                 static const log::LogLevel cLogLevel;
                 /// @brief Error severity log level

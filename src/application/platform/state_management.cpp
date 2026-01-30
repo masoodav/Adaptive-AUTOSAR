@@ -57,11 +57,13 @@ namespace application
                             functionGroup, _shortName)
                             .Value()));
 
-                ara::log::LogStream _logStream;
+                // FIX: Use mLogger directly
                 std::string _functionGroupInstance{
                     functionGroup.GetInstance().ToString()};
-                _logStream << "State: " << _shortName << " of function group: " << _functionGroupInstance << " is configured.";
-                Log(cLogLevel, _logStream);
+                
+                mLogger.WithLevel(cLogLevel) << "State: " << _shortName 
+                                             << " of function group: " << _functionGroupInstance 
+                                             << " is configured.";
             }
         }
 
@@ -80,9 +82,8 @@ namespace application
                 mFunctionGroups.push_back(
                     std::move(ara::exec::FunctionGroup::Create(_shortName).Value()));
 
-                ara::log::LogStream _logStream;
-                _logStream << "Function group: " << _shortName << " is configured.";
-                Log(cLogLevel, _logStream);
+                // FIX: Use mLogger directly
+                mLogger.WithLevel(cLogLevel) << "Function group: " << _shortName << " is configured.";
 
                 std::string _nodeContent{cFunctionGroupNode.GetContent()};
                 configureStates(mFunctionGroups.back(), std::move(_nodeContent));
@@ -92,13 +93,12 @@ namespace application
         void StateManagement::onUndefinedState(
             const ara::exec::ExecutionErrorEvent &event)
         {
-            ara::log::LogStream _logStream;
-            _logStream
+            // FIX: Use mLogger directly
+            mLogger.WithLevel(cLogLevel)
                 << "Function group: "
                 << event.functionGroup->GetInstance().ToString()
                 << " has undefined state because of error code "
                 << event.executionError;
-            Log(cLogLevel, _logStream);
         }
 
         void StateManagement::reportExecutionState(
@@ -145,8 +145,6 @@ namespace application
         {
             const std::string cConfigArgument{helper::ArgumentConfiguration::cConfigArgument};
 
-            ara::log::LogStream _logStream;
-
             try
             {
                 const std::string cConfigFilepath{arguments.at(cConfigArgument)};
@@ -180,8 +178,8 @@ namespace application
                 std::shared_future<void> _startUpStateTransition{
                     transitToStartUpState(_stateClient)};
 
-                _logStream << "State management has been initialized.";
-                Log(cLogLevel, _logStream);
+                // FIX: Standard API
+                mLogger.WithLevel(cLogLevel) << "State management has been initialized.";
 
                 bool _running{true};
 
@@ -200,17 +198,15 @@ namespace application
                         "EM is transited to the start-up state successfully.");
                 }
 
-                _logStream.Flush();
-                _logStream << "State management has been terminated.";
-                Log(cLogLevel, _logStream);
+                // FIX: Standard API
+                mLogger.WithLevel(cLogLevel) << "State management has been terminated.";
 
                 return cSuccessfulExitCode;
             }
             catch (const std::runtime_error &ex)
             {
-                _logStream.Flush();
-                _logStream << ex.what();
-                Log(cErrorLevel, _logStream);
+                // FIX: Standard API
+                mLogger.WithLevel(cErrorLevel) << ex.what();
 
                 return cUnsuccessfulExitCode;
             }

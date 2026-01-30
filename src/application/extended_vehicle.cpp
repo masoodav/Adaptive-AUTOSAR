@@ -186,29 +186,30 @@ namespace application
             return false;
         }
 
-        ara::log::LogStream _logStream;
-
+        // FIX: Refactored to use standard API via mLogger (protected in base)
         if (_jsonResponse.isMember(cVehiclesKey))
         {
             vin = _jsonResponse[cVehiclesKey][0]["id"].asString();
             mResourcesUrl = cRequestUrl + "/" + vin + "/resources";
-            _logStream << "The VIN is set to " << vin;
-            Log(cLogLevel, _logStream);
+            
+            // Standard API usage:
+            mLogger.LogInfo() << "The VIN is set to " << vin;
 
             return true;
         }
         else if (_jsonResponse.isMember(cErrorKey))
         {
             std::string _message = _jsonResponse[cErrorKey]["message"].asString();
-            _logStream << "Setting the VIN failed. " << _message;
-            Log(cErrorLevel, _logStream);
+            
+            // Standard API usage:
+            mLogger.LogError() << "Setting the VIN failed. " << _message;
 
             return false;
         }
         else
         {
-            _logStream << "Setting the VIN failed due to unexpected RESTful response format.";
-            Log(cErrorLevel, _logStream);
+            // Standard API usage:
+            mLogger.LogError() << "Setting the VIN failed due to unexpected RESTful response format.";
 
             return false;
         }
@@ -326,8 +327,6 @@ namespace application
         const std::string cEvConfigFilepath{arguments.at(cEvConfigArgument)};
         const arxml::ArxmlReader cReader(cEvConfigFilepath);
 
-        ara::log::LogStream _logStream;
-
         try
         {
             bool _running{true};
@@ -335,8 +334,8 @@ namespace application
             configureNetworkLayer(cReader);
             configureSdServer(cReader);
 
-            _logStream << "Extended Vehicle AA has been initialized.";
-            Log(cLogLevel, _logStream);
+            // FIX: Standard API usage
+            mLogger.LogInfo() << "Extended Vehicle AA has been initialized.";
 
             std::string _vin;
             bool cConfigured{tryConfigureRestCommunication(
@@ -363,32 +362,31 @@ namespace application
                     PhmCheckpointType::DeadlineTargetCheckpoint);
             }
 
-            _logStream.Flush();
-            if (ara::diag::Conversation::GetCurrentActiveConversations().size() == 0)
+            // FIX: Refactored conditional logging using scope-bound streams (Standard API)
             {
-                _logStream << "There was no active diagnostic conversation at the termination.";
-            }
-            else
-            {
-                _logStream << "There were still some active diagnostic conversations at the termination.";
-            }
-
-            Log(cLogLevel, _logStream);
+                auto logStream = mLogger.WithLevel(cLogLevel);
+                if (ara::diag::Conversation::GetCurrentActiveConversations().size() == 0)
+                {
+                    logStream << "There was no active diagnostic conversation at the termination.";
+                }
+                else
+                {
+                    logStream << "There were still some active diagnostic conversations at the termination.";
+                }
+            } // logStream destructor flushes here automatically
 
             delete mSdServer;
             mSdServer = nullptr;
 
-            _logStream.Flush();
-            _logStream << "Extended Vehicle AA has been terminated.";
-            Log(cLogLevel, _logStream);
+            // FIX: Standard API usage
+            mLogger.LogInfo() << "Extended Vehicle AA has been terminated.";
 
             return cSuccessfulExitCode;
         }
         catch (const std::runtime_error &ex)
         {
-            _logStream.Flush();
-            _logStream << ex.what();
-            Log(cErrorLevel, _logStream);
+            // FIX: Standard API usage
+            mLogger.LogError() << ex.what();
 
             return cUnsuccessfulExitCode;
         }
