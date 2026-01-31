@@ -9,11 +9,9 @@
 namespace ara {
 namespace log {
 
-// ... [LoggerManager and Logger implementations remain unchanged] ...
+// ... [LoggerManager, Logger, Global Functions omitted - assume same as before] ...
 
-// Only showing LogStream changes for brevity. 
-// Assume previous LoggerManager/Logger code is here.
-
+// --- Logger Manager ---
 class LoggerManager {
 public:
     static LoggerManager& Get() {
@@ -33,15 +31,19 @@ private:
     std::map<std::string, std::unique_ptr<Logger>> loggers_;
 };
 
+// --- Logger ---
 Logger::Logger(const std::string& ctxId, const std::string& ctxDesc, LogLevel level)
     : contextId_(ctxId), contextDescription_(ctxDesc), currentLimit_(level) {}
 
 Logger::Logger(Logger&& other) noexcept
     : contextId_(std::move(other.contextId_)),
       contextDescription_(std::move(other.contextDescription_)),
-      currentLimit_(other.currentLimit_.load()) {}
+      currentLimit_(other.currentLimit_.load()),
+      logHandler_(std::move(other.logHandler_)) {}
 
 Logger::~Logger() {}
+
+void Logger::SetLogHandler(LogHandler handler) { logHandler_ = handler; }
 
 bool Logger::IsEnabled(LogLevel logLevel) const noexcept {
     return static_cast<int>(logLevel) <= static_cast<int>(currentLimit_.load());
@@ -51,7 +53,7 @@ void Logger::SetThreshold(LogLevel threshold) noexcept { currentLimit_.store(thr
 
 LogStream Logger::WithLevel(LogLevel logLevel) const noexcept {
     bool active = IsEnabled(logLevel);
-    return LogStream(logLevel, contextId_, active);
+    return LogStream(logLevel, contextId_, active, logHandler_);
 }
 
 LogStream Logger::LogFatal() const noexcept   { return WithLevel(LogLevel::kFatal); }
@@ -64,29 +66,23 @@ LogStream Logger::LogVerbose() const noexcept { return WithLevel(LogLevel::kVerb
 Logger& CreateLogger(core::StringView ctxId, core::StringView ctxDescription, LogLevel ctxDefLogLevel) noexcept {
     try { return LoggerManager::Get().GetOrCreate(ctxId.data(), ctxDescription.data(), ctxDefLogLevel); } catch (...) { std::terminate(); }
 }
-
 Logger& CreateLogger(const core::InstanceSpecifier& is) noexcept {
     return CreateLogger(core::StringView(is.ToString().c_str()), "From InstanceSpecifier", LogLevel::kWarn);
 }
-
 void RegisterConnectionStateHandler(ConnectionStateHandler callback) noexcept {}
 
-// =============================================================================
-// LogStream Implementation
-// =============================================================================
+// --- LogStream Implementation ---
 
-LogStream::LogStream(LogLevel level, const std::string& ctxId, bool active) noexcept 
-    : level_(level), ctxId_(ctxId), active_(active), first_arg_(true) {
-}
+LogStream::LogStream(LogLevel level, const std::string& ctxId, bool active, LogHandler handler) noexcept 
+    : level_(level), ctxId_(ctxId), active_(active), first_arg_(true), logHandler_(handler) {}
 
-// FIX: Default constructor implementation for LogSink
 LogStream::LogStream() noexcept 
-    : level_(LogLevel::kOff), ctxId_("INTERNAL"), active_(true), first_arg_(true) {
-}
+    : level_(LogLevel::kOff), ctxId_("INTERNAL"), active_(true), first_arg_(true) {}
 
 LogStream::LogStream(LogStream&& other) noexcept 
     : level_(other.level_), ctxId_(std::move(other.ctxId_)), 
-      active_(other.active_), first_arg_(other.first_arg_) {
+      active_(other.active_), first_arg_(other.first_arg_),
+      logHandler_(std::move(other.logHandler_)) {
     buffer_ << other.buffer_.str();
     other.buffer_.str("");
     other.active_ = false;
@@ -101,6 +97,13 @@ void LogStream::Flush() noexcept {
         if (!active_) return;
         std::string msg = buffer_.str();
         if (msg.empty()) return;
+
+        if (logHandler_) {
+            logHandler_(level_, msg);
+        } else {
+            std::cout << "[" << ctxId_ << "] " << msg << std::endl;
+        }
+
         buffer_.str("");
         buffer_.clear();
         first_arg_ = true;
@@ -116,16 +119,15 @@ LogStream& LogStream::operator<<(const LogStream& other) noexcept {
     return *this;
 }
 
-void LogStream::AddSeparator() {
-    if (!first_arg_) buffer_ << " ";
-    first_arg_ = false;
-}
+void LogStream::AddSeparator() { if (!first_arg_) buffer_ << " "; first_arg_ = false; }
 
+// Correctly matched implementation
 LogStream& LogStream::WithLocation(core::StringView file, int line) noexcept {
     try { if(active_) buffer_ << "@" << file.data() << ":" << line << " "; } catch (...) {}
     return *this;
 }
 
+// Correctly matched implementation
 LogStream& LogStream::WithTag(core::StringView tag) noexcept {
     try { if(active_) buffer_ << "[" << tag.data() << "] "; } catch (...) {}
     return *this;

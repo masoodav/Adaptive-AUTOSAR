@@ -4,6 +4,7 @@
 #include <chrono>
 #include <sstream>
 #include <string>
+#include <functional>
 #include "../core/core_types.h"
 #include "./common.h"
 #include "./log_fwd.h"
@@ -11,7 +12,8 @@
 namespace ara {
 namespace log {
 
-// Forward declaration for friendship
+using LogHandler = std::function<void(LogLevel, const std::string&)>;
+
 namespace sink { class LogSink; }
 
 // [SWS_LOG_00173] Definition of API class ara::log::LogStream
@@ -23,15 +25,24 @@ public:
     LogStream& operator=(LogStream&&) = delete;
     ~LogStream() noexcept;
 
+    // Public default constructor for Sinks/Internal use
+    LogStream() noexcept;
+
     void Flush() noexcept;
+    
+    // [SWS_LOG_00129]
     LogStream& WithLocation(core::StringView file, int line) noexcept;
+    
+    // [SWS_LOG_00132]
     LogStream& WithTag(core::StringView tag) noexcept;
 
+    // [SWS_LOG_00258]
     template <typename T>
     LogStream& WithPrivacy(T value) noexcept { return *this; }
 
     std::string ToString() const noexcept;
 
+    // Operator overloads
     LogStream& operator<<(bool value) noexcept;
     LogStream& operator<<(std::uint8_t value) noexcept;
     LogStream& operator<<(std::uint16_t value) noexcept;
@@ -77,15 +88,11 @@ public:
 
 private:
     friend class Logger;
-    // FIX: Friend class to allow sinks to instantiate LogStream for timestamps
     friend class sink::LogSink;
 
-    // Standard constructor used by Logger
-    LogStream(LogLevel level, const std::string& ctxId, bool active) noexcept;
+    // Internal constructor used by Logger
+    LogStream(LogLevel level, const std::string& ctxId, bool active, LogHandler handler) noexcept;
     
-    // FIX: Default constructor used by LogSink
-    LogStream() noexcept;
-
     void AddSeparator();
 
     std::ostringstream buffer_;
@@ -93,6 +100,7 @@ private:
     std::string ctxId_;
     bool active_;
     bool first_arg_;
+    LogHandler logHandler_;
 };
 
 inline std::ostream& operator<<(std::ostream& os, const LogStream& stream) {

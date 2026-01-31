@@ -111,8 +111,9 @@ namespace application
             if (cDebouncingStatus ==
                 ara::diag::DebouncingState::kFinallyHealed)
             {
-                // FIX: Standard API
-                mLogger.WithLevel(cLogLevel) << "Telematic Control Module (Extended Vehicle AA) is discovered.";
+                ara::log::LogStream _logStream;
+                _logStream << "Telematic Control Module (Extended Vehicle AA) is discovered.";
+                Log(cLogLevel, _logStream);
 
                 std::string _ipAddress;
                 uint16_t _port;
@@ -145,10 +146,11 @@ namespace application
                     ara::diag::DTCFormatType::kDTCFormatUDS};
                 const auto cDtcNumberResult{mEvent->GetDTCNumber(cDtcFormat)};
 
-                // FIX: Standard API
-                mLogger.WithLevel(cErrorLevel) << mEventSpecifier->ToString()
-                                               << " is failed with DTC "
-                                               << cDtcNumberResult.Value();
+                ara::log::LogStream _logStream;
+                _logStream << mEventSpecifier->ToString()
+                           << " is failed with DTC "
+                           << cDtcNumberResult.Value();
+                Log(cErrorLevel, _logStream);
             }
         }
 
@@ -186,25 +188,26 @@ namespace application
 
         void DiagnosticManager::onInitMonitor(ara::diag::InitMonitorReason reason)
         {
-            // FIX: Standard API via WithLevel
-            auto logStream = mLogger.WithLevel(cLogLevel);
+            ara::log::LogStream _logStream;
 
             switch (reason)
             {
             case ara::diag::InitMonitorReason::kReenabled:
-                logStream << mMonitorSpecifier->ToString() << " is offered.";
+                _logStream << mMonitorSpecifier->ToString() << " is offered.";
+
                 break;
 
             case ara::diag::InitMonitorReason::kDisabled:
-                logStream << mMonitorSpecifier->ToString() << " offer is stopped.";
+                _logStream << mMonitorSpecifier->ToString() << " offer is stopped.";
                 break;
 
             default:
                 auto _reasonInt{static_cast<uint32_t>(reason)};
-                logStream << mMonitorSpecifier->ToString() << "'s reason is " << _reasonInt;
+                _logStream << mMonitorSpecifier->ToString() << "'s reason is " << _reasonInt;
                 break;
             }
-            // Stream flushes on destruction
+
+            Log(cLogLevel, _logStream);
         }
 
         void DiagnosticManager::configureMonitor(const arxml::ArxmlReader &reader)
@@ -280,6 +283,8 @@ namespace application
             const std::string cDmConfigFilepath{arguments.at(cDmConfigArgument)};
             const arxml::ArxmlReader cReader(cDmConfigFilepath);
 
+            ara::log::LogStream _logStream;
+
             try
             {
                 configureNetworkLayer(cReader);
@@ -287,8 +292,8 @@ namespace application
                 configureEvent(cReader);
                 configureMonitor(cReader);
 
-                // FIX: Standard API
-                mLogger.WithLevel(cLogLevel) << "Diagnostic Manager has been initialized.";
+                _logStream << "Diagnostic Manager has been initialized.";
+                Log(cLogLevel, _logStream);
 
                 bool _running{true};
                 mSdClient->Start();
@@ -302,15 +307,17 @@ namespace application
                 delete mSdClient;
                 mSdClient = nullptr;
 
-                // FIX: Standard API
-                mLogger.WithLevel(cLogLevel) << "Diagnostic Manager has been terminated.";
+                _logStream.Flush();
+                _logStream << "Diagnostic Manager has been terminated.";
+                Log(cLogLevel, _logStream);
 
                 return cSuccessfulExitCode;
             }
             catch (const std::runtime_error &ex)
             {
-                // FIX: Standard API
-                mLogger.WithLevel(cErrorLevel) << ex.what();
+                _logStream.Flush();
+                _logStream << ex.what();
+                Log(cErrorLevel, _logStream);
 
                 return cUnsuccessfulExitCode;
             }

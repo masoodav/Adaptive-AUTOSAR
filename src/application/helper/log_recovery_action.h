@@ -20,7 +20,7 @@ namespace application
 
             ara::log::LoggingFramework *mLoggingFramework;
             
-            // FIX: Hold logger by reference (non-copyable)
+            // FIX: Logger cannot be copied, must be held by reference
             const ara::log::Logger& mLogger;
 
         public:

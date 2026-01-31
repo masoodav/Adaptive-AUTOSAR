@@ -186,13 +186,12 @@ namespace application
             return false;
         }
 
-        // FIX: Refactored to use standard API via mLogger (protected in base)
+        // FIX: Removed local LogStream, using mLogger
         if (_jsonResponse.isMember(cVehiclesKey))
         {
             vin = _jsonResponse[cVehiclesKey][0]["id"].asString();
             mResourcesUrl = cRequestUrl + "/" + vin + "/resources";
             
-            // Standard API usage:
             mLogger.LogInfo() << "The VIN is set to " << vin;
 
             return true;
@@ -201,14 +200,12 @@ namespace application
         {
             std::string _message = _jsonResponse[cErrorKey]["message"].asString();
             
-            // Standard API usage:
             mLogger.LogError() << "Setting the VIN failed. " << _message;
 
             return false;
         }
         else
         {
-            // Standard API usage:
             mLogger.LogError() << "Setting the VIN failed due to unexpected RESTful response format.";
 
             return false;
@@ -327,6 +324,8 @@ namespace application
         const std::string cEvConfigFilepath{arguments.at(cEvConfigArgument)};
         const arxml::ArxmlReader cReader(cEvConfigFilepath);
 
+        // FIX: Removed _logStream variable
+
         try
         {
             bool _running{true};
@@ -362,9 +361,9 @@ namespace application
                     PhmCheckpointType::DeadlineTargetCheckpoint);
             }
 
-            // FIX: Refactored conditional logging using scope-bound streams (Standard API)
+            // FIX: Refactored logic to use short-lived streams
             {
-                auto logStream = mLogger.WithLevel(cLogLevel);
+                auto logStream = mLogger.LogInfo();
                 if (ara::diag::Conversation::GetCurrentActiveConversations().size() == 0)
                 {
                     logStream << "There was no active diagnostic conversation at the termination.";
@@ -373,7 +372,7 @@ namespace application
                 {
                     logStream << "There were still some active diagnostic conversations at the termination.";
                 }
-            } // logStream destructor flushes here automatically
+            } // stream flushed here
 
             delete mSdServer;
             mSdServer = nullptr;
