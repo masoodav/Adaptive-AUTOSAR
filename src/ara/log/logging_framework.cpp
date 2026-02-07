@@ -19,12 +19,9 @@ namespace ara
             Logger& loggerRef = 
                 const_cast<Logger&>(ara::log::CreateLogger(core::StringView(ctxId.c_str()), core::StringView(ctxDescription.c_str()), mDefaultLogLevel));
             
-            // FIX: Inject the Sink logic into the Logger
-            // This is the bridge: When Logger flushes, it calls this lambda, which calls the Sink
             sink::LogSink* sinkPtr = mLogSink;
-            loggerRef.SetLogHandler([sinkPtr](LogLevel level, const std::string& msg) {
-                // We create a temporary stream to satisfy the Sink's API
-                // This is a zero-cost wrapper around the string
+            // FIX: Commented out unused parameter 'level' to satisfy -Werror=unused-parameter
+            loggerRef.SetLogHandler([sinkPtr](LogLevel /*level*/, const std::string& msg) {
                 LogStream tmp; 
                 tmp << msg;
                 sinkPtr->Log(tmp);
@@ -42,9 +39,9 @@ namespace ara
             Logger& loggerRef =
                 const_cast<Logger&>(ara::log::CreateLogger(core::StringView(ctxId.c_str()), core::StringView(ctxDescription.c_str()), ctxDefLogLevel));
             
-            // FIX: Inject Sink
             sink::LogSink* sinkPtr = mLogSink;
-            loggerRef.SetLogHandler([sinkPtr](LogLevel level, const std::string& msg) {
+            // FIX: Commented out unused parameter 'level'
+            loggerRef.SetLogHandler([sinkPtr](LogLevel /*level*/, const std::string& msg) {
                 LogStream tmp; 
                 tmp << msg;
                 sinkPtr->Log(tmp);
@@ -54,13 +51,11 @@ namespace ara
             return loggerRef;
         }
 
-        // [Log, Create, Destructor methods remain the same as previous step]
         void LoggingFramework::Log(const Logger &logger, LogLevel logLevel, const LogStream &logStream) {
              bool _isLevelEnabled = logger.IsEnabled(logLevel);
              if (_isLevelEnabled) {
                  LogStream _logStreamContext = logger.WithLevel(logLevel);
                  _logStreamContext << logStream;
-                 // Note: With SetLogHandler, _logStreamContext will automatically route to mLogSink on flush!
              }
         }
 

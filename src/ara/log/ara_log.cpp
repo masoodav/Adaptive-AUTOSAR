@@ -69,7 +69,7 @@ Logger& CreateLogger(core::StringView ctxId, core::StringView ctxDescription, Lo
 Logger& CreateLogger(const core::InstanceSpecifier& is) noexcept {
     return CreateLogger(core::StringView(is.ToString().c_str()), "From InstanceSpecifier", LogLevel::kWarn);
 }
-void RegisterConnectionStateHandler(ConnectionStateHandler callback) noexcept {}
+// void RegisterConnectionStateHandler(ConnectionStateHandler callback) noexcept {}
 
 // --- LogStream Implementation ---
 

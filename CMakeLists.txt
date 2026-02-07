@@ -10,7 +10,19 @@ set(CMAKE_CXX_STANDARD 14)
 # Enable 'rdyamic' switch to export the executable's symbols for debugging
 set(CMAKE_ENABLE_EXPORTS 1)
 
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
 include(FetchContent)
+
+# ---- Safety-oriented compiler flags
+# add_compile_options(
+#     -Wall
+#     -Wextra
+#     -Wpedantic
+#     -Werror
+#     -fno-rtti
+# )
 
 # Fetching GoogleTest 1.12.1 for unit testing
 FetchContent_Declare(
@@ -256,6 +268,56 @@ add_library(
   ${source_ara_log_sink_dir}/file_log_sink.cpp
   ${source_ara_log_sink_dir}/log_sink.h
   ${source_ara_log_sink_dir}/log_sink.cpp
+)
+
+target_compile_features(ara_log PUBLIC cxx_std_14)
+
+target_compile_options(ara_log PRIVATE
+    # --- Base Strictness ---
+    -Wall
+    -Wextra
+    -Wpedantic
+    -Werror
+
+    # --- MISRA / Logic / Determinism ---
+    -Werror=vla
+    -Wconversion
+    -Wsign-conversion
+    -Wshadow
+    -Wcast-align
+    -Wcast-qual
+    -Wundef
+    -Wimplicit-fallthrough
+    -Wswitch-enum
+    -Wuninitialized
+    -Wmissing-declarations
+    -Wredundant-decls
+    -Wdouble-promotion
+    -Werror=return-type
+    -Wpointer-arith
+    -Wlogical-op
+
+    # --- Security / Hardening (Adaptive AUTOSAR runs on POSIX-like OS) ---
+    -fstack-protector-strong
+    -Wformat=2
+    -D_FORTIFY_SOURCE=2
+    -fpie
+    -fPIC
+    -fstack-clash-protection
+
+    # --- Standards & Linker Safety ---
+    -fno-common
+    -ffunction-sections
+    -fdata-sections
+
+    # --- Optimization for determinism ---
+    -fno-strict-aliasing
+    -fwrapv
+)
+
+# Note: _FORTIFY_SOURCE requires optimization (-O1 or higher) to work
+target_compile_definitions(ara_log PRIVATE
+    _FORTIFY_SOURCE=2
 )
 
 add_library(
