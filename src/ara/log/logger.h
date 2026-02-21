@@ -58,7 +58,10 @@ public:
     bool IsEnabled(LogLevel logLevel) const noexcept;
 
     template <typename MsgId, typename... Params>
-    void Log(const MsgId& id, const Params&... args) noexcept {}
+    void Log(const MsgId& id, const Params&... args) noexcept {
+        static_cast<void>(id); // Suppress unused warning for stub
+        // Expansion of args would happen here in full implementation
+    }
 
     LogStream LogFatal() const noexcept;
     LogStream LogError() const noexcept;
@@ -70,7 +73,10 @@ public:
     LogStream WithLevel(LogLevel logLevel) const noexcept;
 
     template <typename... Attrs, typename MsgId, typename... Params>
-    void LogWith(const std::tuple<Attrs...>& attrs, const MsgId& msgId, const Params&... params) noexcept {}
+    void LogWith(const std::tuple<Attrs...>& attrs, const MsgId& msgId, const Params&... params) noexcept {
+        static_cast<void>(attrs);
+        static_cast<void>(msgId);
+    }
 
     void SetThreshold(LogLevel threshold) noexcept;
 
@@ -81,14 +87,14 @@ private:
     friend Logger& CreateLogger(const core::InstanceSpecifier& is) noexcept;
     friend class LoggerManager; 
 
+    // MISRA 13-3-3: Parameter names match definition in cpp
     Logger(const std::string& ctxId, const std::string& ctxDesc, LogLevel level);
 
-    // FIX MISRA 10-0-1: Split member declarations
-    std::string contextId_;
-    std::string contextDescription_;
-    
-    std::atomic<LogLevel> currentLimit_; 
-    LogHandler logHandler_;
+    // MISRA 15-1-4: In-class initialization
+    std::string contextId_{""};
+    std::string contextDescription_{""};
+    std::atomic<LogLevel> currentLimit_{LogLevel::kWarn}; 
+    LogHandler logHandler_{nullptr};
 };
 
 Logger& CreateLogger(core::StringView ctxId, core::StringView ctxDescription, LogLevel ctxDefLogLevel = LogLevel::kWarn) noexcept;

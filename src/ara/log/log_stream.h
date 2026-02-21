@@ -39,6 +39,7 @@ public:
 
     std::string ToString() const noexcept;
 
+    // MISRA 0-1-2 Fix: Void cast for ignored return values
     template <typename T, typename = typename std::enable_if<std::is_arithmetic<T>::value>::type>
     LogStream& operator<<(T value) noexcept {
         try {
@@ -90,15 +91,13 @@ private:
     
     void AddSeparator();
 
-    std::ostringstream buffer_;
-    LogLevel level_;
-    std::string ctxId_;
-    
-    // FIX MISRA 10-0-1: Split boolean declarations
-    bool active_;
-    bool first_arg_;
-    
-    LogHandler logHandler_;
+    // MISRA 15-1-4: Member initialization
+    std::ostringstream buffer_{};
+    LogLevel level_{LogLevel::kInfo};
+    std::string ctxId_{""};
+    bool active_{false};
+    bool first_arg_{true};
+    LogHandler logHandler_{nullptr};
 };
 
 inline std::ostream& operator<<(std::ostream& os, const LogStream& stream) {

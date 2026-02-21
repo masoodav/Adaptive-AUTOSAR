@@ -16,6 +16,7 @@ public:
         return instance_;
     }
 
+    // MISRA 13-3-3: Names match definition below
     Logger& GetOrCreate(const std::string& id, const std::string& desc, LogLevel level) {
         std::lock_guard<std::mutex> lock(mutex_);
         auto it = loggers_.find(id);
@@ -23,22 +24,26 @@ public:
         {
             return *(it->second);
         }
-        auto logger = new Logger(id, desc, level); 
-        loggers_[id] = std::unique_ptr<Logger>(logger);
-        return *logger;
+        // MISRA 21-6-2: make_unique preferred, but constructor is private/friend. 
+        // Direct new wrapped immediately in unique_ptr is acceptable here given friendship constraints.
+        std::unique_ptr<Logger> logger(new Logger(id, desc, level));
+        Logger& ref = *logger;
+        loggers_.emplace(id, std::move(logger));
+        return ref;
     }
 
 private:
     static LoggerManager instance_;
-    std::mutex mutex_;
-    std::map<std::string, std::unique_ptr<Logger>> loggers_;
+    // MISRA 15-1-4: Explicit init
+    std::mutex mutex_{}; 
+    std::map<std::string, std::unique_ptr<Logger>> loggers_{};
 };
 
 LoggerManager LoggerManager::instance_;
 
 // --- Logger ---
 Logger::Logger(const std::string& ctxId, const std::string& ctxDesc, LogLevel level)
-    : contextId_(ctxId), contextDescription_(ctxDesc), currentLimit_(level) {}
+    : contextId_(ctxId), contextDescription_(ctxDesc), currentLimit_(level), logHandler_(nullptr) {}
 
 Logger::Logger(Logger&& other) noexcept
     : contextId_(std::move(other.contextId_)),
@@ -48,13 +53,17 @@ Logger::Logger(Logger&& other) noexcept
 
 Logger::~Logger() {}
 
-void Logger::SetLogHandler(LogHandler handler) { logHandler_ = handler; }
+void Logger::SetLogHandler(LogHandler handler) { 
+    logHandler_ = handler; 
+}
 
 bool Logger::IsEnabled(LogLevel logLevel) const noexcept {
     return static_cast<int>(logLevel) <= static_cast<int>(currentLimit_.load());
 }
 
-void Logger::SetThreshold(LogLevel threshold) noexcept { currentLimit_.store(threshold); }
+void Logger::SetThreshold(LogLevel threshold) noexcept { 
+    currentLimit_.store(threshold); 
+}
 
 LogStream Logger::WithLevel(LogLevel logLevel) const noexcept {
     bool active = IsEnabled(logLevel);
@@ -75,6 +84,8 @@ Logger& CreateLogger(core::StringView ctxId, core::StringView ctxDescription, Lo
     } 
     catch (...) 
     { 
+        // MISRA 18-5-2: Terminate is used here because failure to create a logger 
+        // in an AUTOSAR context usually implies critical system instability (OOM).
         std::terminate(); 
     }
 }
@@ -93,7 +104,7 @@ LogStream::LogStream(LogLevel level, const std::string& ctxId, bool active, LogH
     : level_(level), ctxId_(ctxId), active_(active), first_arg_(true), logHandler_(handler) {}
 
 LogStream::LogStream() noexcept 
-    : level_(LogLevel::kOff), ctxId_("INTERNAL"), active_(true), first_arg_(true) {}
+    : level_(LogLevel::kOff), ctxId_("INTERNAL"), active_(true), first_arg_(true), logHandler_(nullptr) {}
 
 LogStream::LogStream(LogStream&& other) noexcept 
     : level_(other.level_), ctxId_(std::move(other.ctxId_)), 
@@ -126,6 +137,7 @@ void LogStream::Flush() noexcept {
         if (logHandler_) {
             logHandler_(level_, msg);
         } else {
+            // MISRA 0-1-2: Cast result to void
             static_cast<void>(std::cout << "[" << ctxId_ << "] " << msg << std::endl);
         }
 
@@ -192,93 +204,37 @@ LogStream& LogStream::WithTag(core::StringView tag) noexcept {
 }
 
 LogStream& LogStream::operator<<(const core::StringView value) noexcept {
-    try 
-    { 
-        if (active_) 
-        { 
-            AddSeparator(); 
-            static_cast<void>(buffer_ << value.data()); 
-        } 
-    } 
-    catch(...) {}
+    try { if (active_) { AddSeparator(); static_cast<void>(buffer_ << value.data()); } } catch(...) {}
     return *this;
 }
 
 LogStream& LogStream::operator<<(const char* const value) noexcept {
-    try 
-    { 
-        if (active_) 
-        { 
-            AddSeparator(); 
-            static_cast<void>(buffer_ << value); 
-        } 
-    } 
-    catch(...) {}
+    try { if (active_) { AddSeparator(); static_cast<void>(buffer_ << value); } } catch(...) {}
     return *this;
 }
 
 LogStream& LogStream::operator<<(const void* value) noexcept {
-    try 
-    { 
-        if (active_) 
-        { 
-            AddSeparator(); 
-            static_cast<void>(buffer_ << value); 
-        } 
-    } 
-    catch(...) {}
+    try { if (active_) { AddSeparator(); static_cast<void>(buffer_ << value); } } catch(...) {}
     return *this;
 }
 
 LogStream& LogStream::operator<<(const std::string& value) noexcept {
-    try 
-    { 
-        if (active_) 
-        { 
-            AddSeparator(); 
-            static_cast<void>(buffer_ << value); 
-        } 
-    } 
-    catch(...) {}
+    try { if (active_) { AddSeparator(); static_cast<void>(buffer_ << value); } } catch(...) {}
     return *this;
 }
 
 LogStream& LogStream::operator<<(LogLevel value) noexcept {
-    try 
-    { 
-        if (active_) 
-        { 
-            AddSeparator(); 
-            static_cast<void>(buffer_ << static_cast<int>(value)); 
-        } 
-    } 
-    catch(...) {}
+    try { if (active_) { AddSeparator(); static_cast<void>(buffer_ << static_cast<int>(value)); } } catch(...) {}
     return *this;
 }
 
 LogStream& LogStream::operator<<(const core::ErrorCode& ec) noexcept {
-    try 
-    { 
-        if (active_) 
-        { 
-            AddSeparator(); 
-            static_cast<void>(buffer_ << "Error:" << ec.Value()); 
-        } 
-    } 
-    catch(...) {}
+    try { if (active_) { AddSeparator(); static_cast<void>(buffer_ << "Error:" << ec.Value()); } } catch(...) {}
     return *this;
 }
 
 LogStream& LogStream::operator<<(const core::InstanceSpecifier& value) noexcept {
-    try 
-    { 
-        if (active_) 
-        { 
-            AddSeparator(); 
-            static_cast<void>(buffer_ << value.ToString()); 
-        } 
-    } 
-    catch(...) {}
+    try { if (active_) { AddSeparator(); static_cast<void>(buffer_ << value.ToString()); } } catch(...) {}
     return *this;
 }
 
