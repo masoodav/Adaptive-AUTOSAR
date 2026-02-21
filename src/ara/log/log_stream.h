@@ -16,7 +16,6 @@ using LogHandler = std::function<void(LogLevel, const std::string&)>;
 
 namespace sink { class LogSink; }
 
-// [SWS_LOG_00173] Definition of API class ara::log::LogStream
 class LogStream final {
 public:
     LogStream(const LogStream&) = delete;
@@ -25,35 +24,32 @@ public:
     LogStream& operator=(LogStream&&) = delete;
     ~LogStream() noexcept;
 
-    // Public default constructor for Sinks/Internal use
     LogStream() noexcept;
 
     void Flush() noexcept;
     
-    // [SWS_LOG_00129]
     LogStream& WithLocation(core::StringView file, int line) noexcept;
-    
-    // [SWS_LOG_00132]
     LogStream& WithTag(core::StringView tag) noexcept;
 
-    // [SWS_LOG_00258]
     template <typename T>
-    LogStream& WithPrivacy(T value) noexcept { return *this; }
+    LogStream& WithPrivacy(T value) noexcept { 
+        static_cast<void>(value); 
+        return *this; 
+    }
 
     std::string ToString() const noexcept;
 
-    // Operator overloads
-    LogStream& operator<<(bool value) noexcept;
-    LogStream& operator<<(std::uint8_t value) noexcept;
-    LogStream& operator<<(std::uint16_t value) noexcept;
-    LogStream& operator<<(std::uint32_t value) noexcept;
-    LogStream& operator<<(std::uint64_t value) noexcept;
-    LogStream& operator<<(std::int8_t value) noexcept;
-    LogStream& operator<<(std::int16_t value) noexcept;
-    LogStream& operator<<(std::int32_t value) noexcept;
-    LogStream& operator<<(std::int64_t value) noexcept;
-    LogStream& operator<<(float value) noexcept;
-    LogStream& operator<<(double value) noexcept;
+    template <typename T, typename = typename std::enable_if<std::is_arithmetic<T>::value>::type>
+    LogStream& operator<<(T value) noexcept {
+        try {
+            if (active_) {
+                AddSeparator();
+                static_cast<void>(buffer_ << (+value));
+            }
+        } catch (...) {}
+        return *this;
+    }
+
     LogStream& operator<<(const core::StringView value) noexcept;
     LogStream& operator<<(const char* const value) noexcept;
     LogStream& operator<<(const void* value) noexcept; 
@@ -69,7 +65,7 @@ public:
         try {
             if (!active_) return *this;
             AddSeparator();
-            buffer_ << value.count() << "ticks"; 
+            static_cast<void>(buffer_ << value.count() << "ticks");
         } catch (...) {}
         return *this;
     }
@@ -79,9 +75,9 @@ public:
         try {
             if (!active_) return *this;
             AddSeparator();
-            if (arg.name_) buffer_ << arg.name_ << ":";
-            buffer_ << arg.value;
-            if (arg.unit_) buffer_ << ":" << arg.unit_;
+            if (arg.name_) static_cast<void>(buffer_ << arg.name_ << ":");
+            static_cast<void>(buffer_ << arg.value);
+            if (arg.unit_) static_cast<void>(buffer_ << ":" << arg.unit_);
         } catch (...) {}
         return *this;
     }
@@ -90,7 +86,6 @@ private:
     friend class Logger;
     friend class sink::LogSink;
 
-    // Internal constructor used by Logger
     LogStream(LogLevel level, const std::string& ctxId, bool active, LogHandler handler) noexcept;
     
     void AddSeparator();
@@ -98,8 +93,11 @@ private:
     std::ostringstream buffer_;
     LogLevel level_;
     std::string ctxId_;
+    
+    // FIX MISRA 10-0-1: Split boolean declarations
     bool active_;
     bool first_arg_;
+    
     LogHandler logHandler_;
 };
 

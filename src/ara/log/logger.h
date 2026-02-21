@@ -13,7 +13,6 @@ namespace log {
 
 class LoggerManager; 
 
-// FIX: Define a generic handler for log messages (Level + Message Content)
 using LogHandler = std::function<void(LogLevel, const std::string&)>;
 
 using ConnectionStateHandler = std::function<void(ClientState)>;
@@ -37,7 +36,12 @@ public:
 };
 
 constexpr Format Dflt() noexcept { return {Fmt::kDefault, 0}; }
-// ... [Other helper functions Dflt/Dec/Hex... same as before] ...
+constexpr Format Dec(std::uint16_t precision = 0) noexcept { return {Fmt::kDec, precision}; }
+constexpr Format Hex(std::uint16_t precision = 0) noexcept { return {Fmt::kHex, precision}; }
+constexpr Format Bin(std::uint16_t precision = 0) noexcept { return {Fmt::kBin, precision}; }
+constexpr Format Oct(std::uint16_t precision = 0) noexcept { return {Fmt::kOct, precision}; }
+constexpr Format AutoFloat(std::uint16_t precision = 6) noexcept { return {Fmt::kAutoFloat, precision}; }
+
 template <typename T>
 Argument<T> Arg(T&& arg, const char* name = nullptr, const char* unit = nullptr, Format format = Dflt()) noexcept {
     return Argument<T>(std::forward<T>(arg), name, unit, format);
@@ -53,7 +57,6 @@ public:
 
     bool IsEnabled(LogLevel logLevel) const noexcept;
 
-    // [Modeled Log method stub...]
     template <typename MsgId, typename... Params>
     void Log(const MsgId& id, const Params&... args) noexcept {}
 
@@ -66,13 +69,11 @@ public:
     
     LogStream WithLevel(LogLevel logLevel) const noexcept;
 
-    // [LogWith stub...]
     template <typename... Attrs, typename MsgId, typename... Params>
     void LogWith(const std::tuple<Attrs...>& attrs, const MsgId& msgId, const Params&... params) noexcept {}
 
     void SetThreshold(LogLevel threshold) noexcept;
 
-    // FIX: Method for the Framework to inject the Sink logic
     void SetLogHandler(LogHandler handler);
 
 private:
@@ -82,15 +83,14 @@ private:
 
     Logger(const std::string& ctxId, const std::string& ctxDesc, LogLevel level);
 
+    // FIX MISRA 10-0-1: Split member declarations
     std::string contextId_;
     std::string contextDescription_;
-    std::atomic<LogLevel> currentLimit_; 
     
-    // FIX: The callback that connects to the Sink
+    std::atomic<LogLevel> currentLimit_; 
     LogHandler logHandler_;
 };
 
-// Global API
 Logger& CreateLogger(core::StringView ctxId, core::StringView ctxDescription, LogLevel ctxDefLogLevel = LogLevel::kWarn) noexcept;
 Logger& CreateLogger(const core::InstanceSpecifier& is) noexcept;
 void RegisterConnectionStateHandler(ConnectionStateHandler callback) noexcept;

@@ -24,7 +24,7 @@ namespace ara
                 /// @brief Constructor
                 /// @param appId Application ID
                 /// @param appDescription Application description
-                LogSink(std::string appId, std::string appDescription);
+                LogSink(const std::string& appId, const std::string& appDescription);
 
                 /// @brief Get the application stamp (application ID and description)
                 /// @returns A log stream with the application stamp

@@ -21,9 +21,9 @@ namespace ara
                 /// @param appDescription Application description
                 /// @param logFilePath Logging file sink path
                 FileLogSink(
-                    std::string appId,
-                    std::string appDescription,
-                    std::string logFilePath);
+                    const std::string& appId,
+                    const std::string& appDescription,
+                    const std::string& logFilePath);
 
                 FileLogSink() = delete;
                 void Log(const LogStream &logStream) const override;

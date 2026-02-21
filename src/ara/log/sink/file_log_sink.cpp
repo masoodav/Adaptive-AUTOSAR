@@ -7,9 +7,9 @@ namespace ara
         namespace sink
         {
             FileLogSink::FileLogSink(
-                std::string appId,
-                std::string appDescription,
-                std::string logFilePath) : LogSink(appId, appDescription),
+                const std::string& appId,
+                const std::string& appDescription,
+                const std::string& logFilePath) : LogSink(appId, appDescription),
                                            mLogFilePath{logFilePath}
             {
             }
@@ -18,14 +18,14 @@ namespace ara
             {
                 const std::string cNewline{"\n"};
 
-                LogStream _timestamp = GetTimestamp();
-                LogStream _appstamp = GetAppstamp();
-                _timestamp << cWhitespace << _appstamp  << cWhitespace << logStream;
-                std::string _logString = _timestamp.ToString();
+                LogStream timestamp = GetTimestamp();
+                LogStream appstamp = GetAppstamp();
+                static_cast<void>(timestamp << cWhitespace << appstamp  << cWhitespace << logStream);
+                std::string logString = timestamp.ToString();
 
                 std::ofstream logFileStream(
                     mLogFilePath, std::ofstream::out | std::ofstream::app);
-                logFileStream << _logString << cNewline;
+                static_cast<void>(logFileStream << logString << cNewline);
                 logFileStream.close();
             }
         }
