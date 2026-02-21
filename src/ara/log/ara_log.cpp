@@ -9,14 +9,16 @@
 namespace ara {
 namespace log {
 
-// --- Logger Manager ---
+// FIX: Removed anonymous namespace to match 'friend class LoggerManager' in header.
+// LoggerManager is defined only in this translation unit, effectively hiding it from others
+// unless they extern it (which they shouldn't).
+
 class LoggerManager {
 public:
     static LoggerManager& Get() {
         return instance_;
     }
 
-    // MISRA 13-3-3: Names match definition below
     Logger& GetOrCreate(const std::string& id, const std::string& desc, LogLevel level) {
         std::lock_guard<std::mutex> lock(mutex_);
         auto it = loggers_.find(id);
@@ -28,14 +30,14 @@ public:
         // Direct new wrapped immediately in unique_ptr is acceptable here given friendship constraints.
         std::unique_ptr<Logger> logger(new Logger(id, desc, level));
         Logger& ref = *logger;
-        loggers_.emplace(id, std::move(logger));
+        // MISRA 0-1-2: Ignored return value of emplace
+        static_cast<void>(loggers_.emplace(id, std::move(logger)));
         return ref;
     }
 
 private:
     static LoggerManager instance_;
-    // MISRA 15-1-4: Explicit init
-    std::mutex mutex_{}; 
+    std::mutex mutex_{};
     std::map<std::string, std::unique_ptr<Logger>> loggers_{};
 };
 
@@ -116,9 +118,14 @@ LogStream::LogStream(LogStream&& other) noexcept
 }
 
 LogStream::~LogStream() noexcept {
-    if (active_ && level_ != LogLevel::kOff) 
-    {
-        Flush();
+    // MISRA 18-4-1: Destructor must not throw.
+    try {
+        if (active_ && level_ != LogLevel::kOff) 
+        {
+            Flush();
+        }
+    } catch(...) {
+        // Swallow exception in destructor
     }
 }
 

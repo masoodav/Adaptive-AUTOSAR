@@ -39,7 +39,7 @@ public:
 
     std::string ToString() const noexcept;
 
-    // MISRA 0-1-2 Fix: Void cast for ignored return values
+    // MISRA 0-1-2: Void cast
     template <typename T, typename = typename std::enable_if<std::is_arithmetic<T>::value>::type>
     LogStream& operator<<(T value) noexcept {
         try {
@@ -91,7 +91,6 @@ private:
     
     void AddSeparator();
 
-    // MISRA 15-1-4: Member initialization
     std::ostringstream buffer_{};
     LogLevel level_{LogLevel::kInfo};
     std::string ctxId_{""};

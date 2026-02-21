@@ -59,8 +59,8 @@ public:
 
     template <typename MsgId, typename... Params>
     void Log(const MsgId& id, const Params&... args) noexcept {
-        static_cast<void>(id); // Suppress unused warning for stub
-        // Expansion of args would happen here in full implementation
+        static_cast<void>(id);
+        // Parameter expansion would occur here
     }
 
     LogStream LogFatal() const noexcept;
@@ -87,7 +87,7 @@ private:
     friend Logger& CreateLogger(const core::InstanceSpecifier& is) noexcept;
     friend class LoggerManager; 
 
-    // MISRA 13-3-3: Parameter names match definition in cpp
+    // MISRA 13-3-3: Names match implementation
     Logger(const std::string& ctxId, const std::string& ctxDesc, LogLevel level);
 
     // MISRA 15-1-4: In-class initialization
