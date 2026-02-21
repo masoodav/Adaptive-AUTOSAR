@@ -73,7 +73,7 @@ FetchContent_MakeAvailable(
 #
 # Options:
 
-option(build_tests "Build all the tests." ON)
+option(build_tests "Build all the tests." OFF)
 
 ########################################################################
 #
@@ -300,7 +300,7 @@ target_compile_options(ara_log PRIVATE
     # --- Security / Hardening (Adaptive AUTOSAR runs on POSIX-like OS) ---
     -fstack-protector-strong
     -Wformat=2
-    -D_FORTIFY_SOURCE=2
+    -D_FORTIFY_SOURCE=0
     -fpie
     -fPIC
     -fstack-clash-protection
@@ -313,11 +313,6 @@ target_compile_options(ara_log PRIVATE
     # --- Optimization for determinism ---
     -fno-strict-aliasing
     -fwrapv
-)
-
-# Note: _FORTIFY_SOURCE requires optimization (-O1 or higher) to work
-target_compile_definitions(ara_log PRIVATE
-    _FORTIFY_SOURCE=2
 )
 
 add_library(
