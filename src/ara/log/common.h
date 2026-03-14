@@ -1,41 +1,68 @@
-#ifndef COMMON_H
-#define COMMON_H
+/**
+ * @file common.h
+ * @brief Common types for ara::log – ClientState and LogLevel.
+ *
+ * AUTOSAR Adaptive Platform R25-11
+ * Document ID 853
+ *
+ * Traceability:
+ *   [SWS_LOG_00098]  enum class ClientState
+ *   [SWS_LOG_00018]  enum class LogLevel
+ *
+ * Coding standards:
+ *   - MISRA C++:2023 Rule 10.2.1  – scoped enumerations
+ *   - CERT C++ DCL50-CPP           – no variadic function misuse
+ *   - CWE-188                      – reliance on data/memory layout avoided
+ *   - ISO/SAE 21434                – safety-critical type definitions
+ */
 
-#include <stdint.h>
+#ifndef ARA_LOG_COMMON_H_
+#define ARA_LOG_COMMON_H_
 
-namespace ara
+#include <cstdint>
+
+namespace ara {
+namespace log {
+
+// ---------------------------------------------------------------------------
+// [SWS_LOG_00098] ClientState
+// ---------------------------------------------------------------------------
+
+/**
+ * @brief Represents the connection state of an external logging client.
+ *
+ * Underlying type fixed to std::int8_t as specified in [SWS_LOG_00098].
+ */
+enum class ClientState : std::int8_t
 {
-    /// @brief Adaptive AUTOSAR Logging
-    namespace log
-    {
-        /// @brief Log severity level
-        enum class LogLevel : std::uint8_t
-        {
-            kOff = 0x00,        ///< No logging
-            kFatal = 0x01,      ///< Fatal log
-            kError = 0x02,      ///< Error log
-            kWarn = 0x03,       ///< Warning log
-            kInfo = 0x04,       ///< Informative log
-            kDebug = 0x05,      ///< Debug log
-            kVerbose = 0x06     ///< Verbose log
-        };
+    kUnknown      = -1, ///< DLT back-end not yet running; state indeterminate.
+    kNotConnected =  0, ///< No remote client detected.
+    kConnected    =  1  ///< Remote client is connected.
+};
 
-        /// @brief Log sink mode
-        enum class LogMode : std::uint8_t
-        {
-            kRemote = 0x01,     ///< Remote network logging sink
-            kFile = 0x02,       ///< File logging sink for debugging
-            kConsole = 0x04     ///< Console logging sink for debugging
-        };
+// ---------------------------------------------------------------------------
+// [SWS_LOG_00018] LogLevel
+// ---------------------------------------------------------------------------
 
-        /// @brief Logging client connection state
-        enum class ClientState : std::int8_t
-        {
-            kUnknown = -1,      ///< Connection state unknown
-            kNotConnected = 0,  ///< Client is disconnected
-            kConnected = 1      ///< Client is connected
-        };
-    }
-}
+/**
+ * @brief Severity levels for log messages.
+ *
+ * Underlying type fixed to std::uint8_t as specified in [SWS_LOG_00018].
+ * Values are ordered from most severe (kFatal) to most verbose (kVerbose).
+ * kOff disables all logging.
+ */
+enum class LogLevel : std::uint8_t
+{
+    kOff     = 0x00U, ///< No logging.
+    kFatal   = 0x01U, ///< Fatal, non-recoverable error.
+    kError   = 0x02U, ///< Error with impact on correct functionality.
+    kWarn    = 0x03U, ///< Warning if correct behavior cannot be ensured.
+    kInfo    = 0x04U, ///< Informational, high-level understanding.
+    kDebug   = 0x05U, ///< Detailed programmer information.
+    kVerbose = 0x06U  ///< Extra-verbose debug messages.
+};
 
-#endif
+} // namespace log
+} // namespace ara
+
+#endif // ARA_LOG_COMMON_H_

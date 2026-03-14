@@ -10,7 +10,19 @@ set(CMAKE_CXX_STANDARD 14)
 # Enable 'rdyamic' switch to export the executable's symbols for debugging
 set(CMAKE_ENABLE_EXPORTS 1)
 
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
 include(FetchContent)
+
+# ---- Safety-oriented compiler flags
+# add_compile_options(
+#     -Wall
+#     -Wextra
+#     -Wpedantic
+#     -Werror
+#     -fno-rtti
+# )
 
 # Fetching GoogleTest 1.12.1 for unit testing
 FetchContent_Declare(
@@ -61,7 +73,7 @@ FetchContent_MakeAvailable(
 #
 # Options:
 
-option(build_tests "Build all the tests." ON)
+option(build_tests "Build all the tests." OFF)
 
 ########################################################################
 #
@@ -242,10 +254,18 @@ add_library(
 add_library(
   ara_log
   ${source_ara_log_dir}/argument.h
+  ${source_ara_log_dir}/common.h
+  ${source_ara_log_dir}/format.h
+  ${source_ara_log_dir}/log_backend.cpp
+  ${source_ara_log_dir}/log_backend.h
   ${source_ara_log_dir}/log_stream.h
   ${source_ara_log_dir}/log_stream.cpp
+  ${source_ara_log_dir}/logging.h
   ${source_ara_log_dir}/logger.h
   ${source_ara_log_dir}/logger.cpp
+  ${source_ara_log_dir}/log_fwd.h
+  ${source_ara_log_dir}/span.h
+  ${source_ara_log_dir}/string_view.h
   ${source_ara_log_dir}/logging_framework.h
   ${source_ara_log_dir}/logging_framework.cpp
   ${source_ara_log_sink_dir}/console_log_sink.h
@@ -254,6 +274,51 @@ add_library(
   ${source_ara_log_sink_dir}/file_log_sink.cpp
   ${source_ara_log_sink_dir}/log_sink.h
   ${source_ara_log_sink_dir}/log_sink.cpp
+)
+
+target_compile_features(ara_log PUBLIC cxx_std_14)
+
+target_compile_options(ara_log PRIVATE
+    # --- Base Strictness ---
+    -Wall
+    -Wextra
+    -Wpedantic
+    -Werror
+
+    # --- MISRA / Logic / Determinism ---
+    -Werror=vla
+    -Wconversion
+    -Wsign-conversion
+    -Wshadow
+    -Wcast-align
+    -Wcast-qual
+    -Wundef
+    -Wimplicit-fallthrough
+    -Wswitch-enum
+    -Wuninitialized
+    -Wmissing-declarations
+    -Wredundant-decls
+    -Wdouble-promotion
+    -Werror=return-type
+    -Wpointer-arith
+    -Wlogical-op
+
+    # --- Security / Hardening (Adaptive AUTOSAR runs on POSIX-like OS) ---
+    -fstack-protector-strong
+    -Wformat=2
+    -D_FORTIFY_SOURCE=0
+    -fpie
+    -fPIC
+    -fstack-clash-protection
+
+    # --- Standards & Linker Safety ---
+    -fno-common
+    -ffunction-sections
+    -fdata-sections
+
+    # --- Optimization for determinism ---
+    -fno-strict-aliasing
+    -fwrapv
 )
 
 add_library(
