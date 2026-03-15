@@ -1,56 +1,51 @@
 /**
  * @file error_code.h
- * @brief ara::core::ErrorCode stub for ara::log implementation.
+ * @brief ara::core::ErrorDomain and ara::core::ErrorCode – C++14 compliant.
  *
  * AUTOSAR Adaptive Platform R25-11
- * MISRA C++:2023 compliant | ISO/SAE 21434 | CERT C++ | CWE-safe
+ * MISRA C++:2023 | ISO/SAE 21434 | CERT C++ | CWE-safe
  */
 
 #ifndef ARA_CORE_ERROR_CODE_H_
 #define ARA_CORE_ERROR_CODE_H_
 
-#include "ara/core/string_view.h"
+#include "./string_view.h"
 #include <cstdint>
 
 namespace ara {
 namespace core {
 
 /**
- * @brief Minimal ErrorDomain base required for ErrorCode.
+ * @brief Abstract base for error domains.
  */
 class ErrorDomain
 {
 public:
-    /// @brief Return the short name of the error domain.
     virtual StringView Name() const noexcept = 0;
 
-    ErrorDomain()                            = default;
-    virtual ~ErrorDomain()                   = default;
-    ErrorDomain(const ErrorDomain &)         = delete;
+    ErrorDomain()                               = default;
+    virtual ~ErrorDomain()                      = default;
+    ErrorDomain(const ErrorDomain &)            = delete;
     ErrorDomain &operator=(const ErrorDomain &) = delete;
-    ErrorDomain(ErrorDomain &&)              = delete;
-    ErrorDomain &operator=(ErrorDomain &&)   = delete;
+    ErrorDomain(ErrorDomain &&)                 = delete;
+    ErrorDomain &operator=(ErrorDomain &&)      = delete;
 };
 
 /**
- * @brief Represents a platform-level error code.
+ * @brief Platform error code with owning domain reference.
  * [SWS_CORE_10300]
  */
 class ErrorCode final
 {
 public:
-    using CodeType = std::int32_t;
+    typedef std::int32_t CodeType;
 
-    /// @brief Construct an ErrorCode with a numeric code and its owning domain.
-    constexpr ErrorCode(CodeType code, const ErrorDomain &domain) noexcept
-        : code_{code}, domain_{&domain}
+    ErrorCode(CodeType code, const ErrorDomain &domain) noexcept
+        : code_(code), domain_(&domain)
     {}
 
-    /// @brief Return the numeric error value.
-    constexpr CodeType Value() const noexcept { return code_; }
-
-    /// @brief Return the owning error domain.
-    constexpr const ErrorDomain &Domain() const noexcept { return *domain_; }
+    CodeType           Value()  const noexcept { return code_;    }
+    const ErrorDomain &Domain() const noexcept { return *domain_; }
 
 private:
     CodeType           code_;

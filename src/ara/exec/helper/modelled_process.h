@@ -1,3 +1,27 @@
+/**
+ * @file modelled_process.h
+ *
+ * Fix applied:
+ *   [FIX-3] Changed  log::Logger mLogger;
+ *           to       const log::Logger &mLogger;
+ *
+ *   Root cause: LoggingFramework::CreateLogger() returns const Logger&.
+ *   Binding a const Logger& to a Logger value member invokes the copy
+ *   constructor, which is = delete per [SWS_LOG_00172].
+ *   A const reference member can be directly bound to a const Logger&
+ *   without any copy or move, resolving:
+ *   "error: use of deleted function 'ara::log::Logger::Logger(const ara::log::Logger&)'"
+ *
+ *   The member initialiser in modelled_process.cpp:
+ *     mLogger{mLoggingFramework->CreateLogger(...)}
+ *   now binds the returned const Logger& to the reference member,
+ *   which is well-formed and requires no copy constructor.
+ *
+ *   Note: a reference member must be initialised in the constructor
+ *   initialiser list (as it already is) and cannot be reseated —
+ *   this matches the Logger ownership model (owned by the framework).
+ */
+
 #ifndef MODELLED_PROCESS_H
 #define MODELLED_PROCESS_H
 
@@ -24,7 +48,7 @@ namespace ara
                 static const std::string cContextDescription;
 
                 log::LoggingFramework *mLoggingFramework;
-                log::Logger mLogger;
+                const log::Logger &mLogger;  // [FIX-3] was: log::Logger mLogger;
                 DeterministicClient mDeterministicClient;
                 std::atomic_bool mCancellationToken;
                 std::future<int> mExitCode;

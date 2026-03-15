@@ -23,10 +23,10 @@
 #ifndef ARA_LOG_LOGGING_H_
 #define ARA_LOG_LOGGING_H_
 
-#include "ara/log/common.h"
-#include "ara/log/log_stream.h"
-#include "ara/log/logger.h"
-#include "ara/log/internal/log_backend.h"
+#include "common.h"
+#include "log_stream.h"
+#include "./logger.h"
+#include "./log_backend.h"
 
 namespace ara {
 namespace log {
@@ -51,7 +51,7 @@ namespace log {
 inline void InitLogging(
     ara::core::StringView         appId,
     ara::core::StringView         appDescription,
-    internal::LogMode             logMode,
+    LogMode             logMode,
     ara::core::StringView         logFilePath = "") noexcept
 {
     internal::LoggingFramework::Instance().Initialize(

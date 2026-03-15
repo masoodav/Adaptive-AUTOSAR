@@ -1,37 +1,34 @@
 /**
  * @file instance_specifier.h
- * @brief ara::core::InstanceSpecifier stub for ara::log implementation.
+ * @brief ara::core::InstanceSpecifier – C++14 compliant stub.
  *
  * AUTOSAR Adaptive Platform R25-11
- * MISRA C++:2023 compliant | ISO/SAE 21434 | CERT C++ | CWE-safe
+ * MISRA C++:2023 | ISO/SAE 21434 | CERT C++ | CWE-safe
  */
 
 #ifndef ARA_CORE_INSTANCE_SPECIFIER_H_
 #define ARA_CORE_INSTANCE_SPECIFIER_H_
 
-#include "ara/core/string_view.h"
+#include "./string_view.h"
 #include <string>
 
 namespace ara {
 namespace core {
 
 /**
- * @brief Represents an InstanceSpecifier in the AUTOSAR meta-model.
- *
- * Used to identify port-prototype instances at runtime.
- * [SWS_CORE_10200] – InstanceSpecifier
+ * @brief Identifies a port-prototype instance at runtime.
+ * [SWS_CORE_10200]
  */
 class InstanceSpecifier final
 {
 public:
-    /// @brief Construct from a model path string view.
-    /// @param metaModelIdentifier  Short-name path of the port prototype.
+    /// Construct from a short-name model path.
     explicit InstanceSpecifier(StringView metaModelIdentifier) noexcept
-        : path_{metaModelIdentifier}
+        : path_(metaModelIdentifier.data(), metaModelIdentifier.size())
     {}
 
-    /// @brief Return the model path as StringView.
-    StringView ToString() const noexcept { return path_; }
+    /// Return the model path as StringView.
+    StringView ToString() const noexcept { return StringView(path_); }
 
 private:
     std::string path_;
