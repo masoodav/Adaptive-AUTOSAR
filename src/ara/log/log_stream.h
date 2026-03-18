@@ -148,31 +148,31 @@ public:
     // -----------------------------------------------------------------------
     LogStream &operator<<(ara::core::StringView                   value) noexcept; // [SWS_LOG_00062]
     LogStream &operator<<(const char *const                       value) noexcept; // [SWS_LOG_00051]
+
+    /**
+     * @brief Stream a std::string into the log.
+     *
+     * Added because the V11 MISRA fix made StringView(const std::string&)
+     * explicit, removing the implicit conversion that previously allowed
+     * user code such as:
+     *   _logStream << someStdString;
+     * to compile.  Providing an explicit std::string overload restores
+     * that functionality without requiring implicit conversions or changes
+     * to user files.
+     *
+     * @param value  The std::string to append to the log stream.
+     * @return       Reference to *this for chaining.
+     */
+    LogStream &operator<<(const std::string                      &value) noexcept; // std::string support
     LogStream &operator<<(ara::core::Span<const ara::core::Byte>  data)  noexcept; // [SWS_LOG_00128]
 
     // -----------------------------------------------------------------------
-    // [SWS_LOG_00203] Argument<T>
-    // -----------------------------------------------------------------------
+    // [SWS_LOG_00203] Argument<T>  [V2][V8]
     template <typename T>
     LogStream &operator<<(const Argument<T> &arg) noexcept
     {
         *this << arg.value;
-        try
-        {
-            if (arg.name != nullptr)
-            {
-                metaBuffer_.append("[name=");
-                metaBuffer_.append(arg.name);
-                metaBuffer_.append("] ");
-            }
-            if (arg.unit != nullptr)
-            {
-                metaBuffer_.append("[unit=");
-                metaBuffer_.append(arg.unit);
-                metaBuffer_.append("] ");
-            }
-        }
-        catch (...) {}
+        AppendMeta(arg.name, arg.unit);  // [V2][V8] no inline throw
         return *this;
     }
 
@@ -190,6 +190,8 @@ private:
     // Private constructor – only Logger may instantiate.
     explicit LogStream(LogLevel level, bool enabled) noexcept;
     void     DoFlush() noexcept;
+    // [V2][V8] Non-noexcept helper to append name/unit metadata.
+    void     AppendMeta(const char *name, const char *unit) noexcept;
 
     // -----------------------------------------------------------------------
     // Member data – declared in construction order to avoid -Wreorder.

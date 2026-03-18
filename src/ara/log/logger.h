@@ -103,7 +103,7 @@ public:
     // Special member functions
     // -----------------------------------------------------------------------
     Logger()                          = delete;  // [SWS_LOG_00259]
-    ~Logger();                                   // [SWS_LOG_00260]
+    ~Logger() noexcept;  // [SWS_LOG_00260] [V7] MISRA 18-4-1: must be noexcept
     Logger(const Logger &)            = delete;  ///< Not copyable.
     Logger &operator=(const Logger &) = delete;  ///< Not copyable.
     Logger(Logger &&other)            noexcept;  ///< Movable – needed by std::vector.

@@ -44,8 +44,8 @@ namespace ara
                  * [FIX-1] Declaration only – definition lives in
                  *         console_log_sink.cpp to avoid redefinition error.
                  */
-                ConsoleLogSink(std::string appId,
-                               std::string appDescription);
+                ConsoleLogSink(const std::string &appId,
+                               const std::string &appDescription);  // [V13]
 
                 ~ConsoleLogSink() = default;
 

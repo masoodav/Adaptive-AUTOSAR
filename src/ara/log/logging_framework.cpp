@@ -61,8 +61,11 @@ namespace ara
             // bookkeeping (e.g. to enumerate contexts).
             // [FIX-D]: Logger must be movable for push_back to compile.
             Logger newLogger =
-                Logger(ctxId,          /* [FIX-C] was Logger::CreateLogger */
-                       ctxDescription,
+                // [V11] Use .data() → const char* for StringView construction.
+                // Works with any StringView regardless of whether it has
+                // a std::string constructor (project ara_core may not).
+                Logger(ara::core::StringView(ctxId.data()),
+                       ara::core::StringView(ctxDescription.data()),
                        mDefaultLogLevel);
             mLoggers.push_back(std::move(newLogger));
             return mLoggers.back();
@@ -79,8 +82,8 @@ namespace ara
             LogLevel    ctxDefLogLevel)
         {
             Logger newLogger =
-                Logger(ctxId,          /* [FIX-C] was Logger::CreateLogger */
-                       ctxDescription,
+                Logger(ara::core::StringView(ctxId.data()),
+                       ara::core::StringView(ctxDescription.data()),
                        ctxDefLogLevel);
             mLoggers.push_back(std::move(newLogger));
             return mLoggers.back();

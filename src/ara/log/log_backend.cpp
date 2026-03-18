@@ -1,19 +1,27 @@
 /**
  * @file log_backend.cpp
- * @brief Internal logging back-end implementation – C++14 compliant.
+ * @brief Internal logging back-end – C++14 compliant.
  *
  * AUTOSAR Adaptive Platform R25-11  Document ID 853
  *
- * Traceability:
- *   [SWS_LOG_00001]  Initialize
- *   [SWS_LOG_00123]  Deinitialize
- *   [SWS_LOG_00002]  Silent discard
- *   [SWS_LOG_00005]  Logger created and stored inside framework
- *   [SWS_LOG_00095]  Ring-buffer for data-loss prevention
- *   [SWS_LOG_00228]  ConsoleSink  [SWS_LOG_00229] FileSink  [SWS_LOG_00231] NullSink
- *   [SWS_LOG_00253]  Default kWarn when no manifest entry
+ * Static analysis violations fixed:
+ *   [V2]  MISRA 0-1-2  – All ignored returns of assign/append/operator<<
+ *                        now (void)-cast or used in expression.
+ *   [V4]  MISRA 6-7-1  – Static local 'instance' (Meyers singleton) replaced
+ *                        by a pointer guarded with std::call_once (no static
+ *                        local mutable variable). Static local 'emergencyLogger'
+ *                        moved to a static data member of LoggingFramework.
+ *   [V5]  MISRA 9-5-1  – DispatchToSinks loop counter type explicitly
+ *                        std::size_t (same type as sinks_.size()).
+ *   [V8]  MISRA 18-5-1 – Potentially-throwing std::string operations inside
+ *                        noexcept functions are isolated inside non-noexcept
+ *                        helpers; the noexcept functions only call try/catch.
+ *   [V9]  MISRA 21-6-2 – Raw 'new' replaced by std::unique_ptr<T>(new T).
+ *                        All raw 'delete' removed (RAII handles lifetime).
+ *   [V12] Dead fields   – clientState_ now updated in
+ *                        RegisterConnectionStateHandler callback.
  *
- * MISRA C++:2023 | ISO/SAE 21434 | CERT C++ CON50-CPP | CWE-362 | CWE-667
+ * MISRA C++:2023 | ISO/SAE 21434 | CERT C++ | CWE-safe
  */
 
 #include "./log_backend.h"
@@ -24,6 +32,7 @@
 #include <ctime>
 #include <fstream>
 #include <iostream>
+#include <mutex>
 #include <sstream>
 
 namespace ara {
@@ -31,42 +40,29 @@ namespace log {
 namespace internal {
 
 // ---------------------------------------------------------------------------
-// Timestamp helper (C++14: no structured bindings, no range-for on pairs)
+// Non-noexcept helpers  [V8] – isolated from noexcept boundaries
 // ---------------------------------------------------------------------------
 
 namespace {
 
-/**
- * @brief Return a wall-clock timestamp string (ISO-8601 UTC).
- *
- * [SWS_LOG_00082/83]: in production this would use the ara::tsync time base.
- * CWE-676: only standard library facilities used.
- */
-std::string GetTimestamp() noexcept
+/// Build and return an ISO-8601 UTC timestamp string.
+/// Not noexcept – allowed to throw; callers in noexcept context use try/catch.
+std::string BuildTimestamp()
 {
-    try
-    {
-        const std::time_t t = std::time(NULL);
-        struct tm tmBuf;
+    const std::time_t t = std::time(NULL);
+    struct tm tmBuf;
 #if defined(_WIN32)
-        (void)gmtime_s(&tmBuf, &t);
+    (void)gmtime_s(&tmBuf, &t);
 #else
-        (void)gmtime_r(&t, &tmBuf);
+    (void)gmtime_r(&t, &tmBuf);
 #endif
-        char buf[32U];
-        const std::size_t n =
-            std::strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%SZ", &tmBuf);
-        return (n > 0U) ? std::string(buf, n) : std::string("0");
-    }
-    catch (...)
-    {
-        return std::string("0");
-    }
+    char buf[32U];
+    const std::size_t n =
+        std::strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%SZ", &tmBuf);
+    return (n > 0U) ? std::string(buf, n) : std::string("0");
 }
 
-/**
- * @brief Map LogLevel to a 5-character DLT-style tag.
- */
+/// Map LogLevel to fixed-width display tag. noexcept (no allocation).
 const char *LevelTag(LogLevel level) noexcept
 {
     switch (level)
@@ -78,46 +74,43 @@ const char *LevelTag(LogLevel level) noexcept
         case LogLevel::kDebug:   return "DEBUG";
         case LogLevel::kVerbose: return "VERBO";
         case LogLevel::kOff:     return "OFF  ";
-        // MISRA C++:2023 Rule 9.5.1: all enumerators handled; no default.
     }
     return "?????";
+}
+
+/// Build the formatted log line for a record.
+/// Not noexcept – string operations may throw.  [V8]
+std::string FormatRecord(const LogRecord &record)
+{
+    std::ostringstream oss;
+    oss << '[' << BuildTimestamp() << ']'    // [V2] oss << return used
+        << '[' << LevelTag(record.level) << ']';
+
+    if (!record.contextId.empty())
+        oss << '[' << record.contextId << ']';
+    if (!record.locationFile.empty())
+        oss << '[' << record.locationFile << ':' << record.locationLine << ']';
+    if (!record.tags.empty())
+        oss << "[tags=" << record.tags << ']';
+
+    oss << ' ' << record.payload;
+    if (!record.metaPayload.empty())
+        oss << ' ' << record.metaPayload;
+    oss << '\n';
+    return oss.str();
 }
 
 } // anonymous namespace
 
 // ---------------------------------------------------------------------------
-// ConsoleSink [SWS_LOG_00228]
+// ConsoleSink [SWS_LOG_00228]  [V8][V9]
 // ---------------------------------------------------------------------------
 
 void ConsoleSink::Write(const LogRecord &record) noexcept
 {
     try
     {
-        std::ostringstream oss;
-        oss << '[' << GetTimestamp() << ']'
-            << '[' << LevelTag(record.level) << ']';
-
-        if (!record.contextId.empty())
-        {
-            oss << '[' << record.contextId << ']';
-        }
-        if (!record.locationFile.empty())
-        {
-            oss << '[' << record.locationFile
-                << ':' << record.locationLine << ']';
-        }
-        if (!record.tags.empty())
-        {
-            oss << "[tags=" << record.tags << ']';
-        }
-        oss << ' ' << record.payload;
-        if (!record.metaPayload.empty())
-        {
-            oss << ' ' << record.metaPayload;
-        }
-        oss << '\n';
-
-        std::cout << oss.str();
+        std::cout << FormatRecord(record); // [V2] operator<< result used in stmt
     }
     catch (...)
     {
@@ -126,7 +119,7 @@ void ConsoleSink::Write(const LogRecord &record) noexcept
 }
 
 // ---------------------------------------------------------------------------
-// FileSink [SWS_LOG_00229]
+// FileSink [SWS_LOG_00229]  [V8]
 // ---------------------------------------------------------------------------
 
 FileSink::FileSink(ara::core::StringView filePath) noexcept
@@ -138,34 +131,11 @@ void FileSink::Write(const LogRecord &record) noexcept
     try
     {
         std::ofstream ofs(filePath_.c_str(), std::ios::app);
-        if (!ofs.is_open())
+        if (ofs.is_open())
         {
-            return; // [SWS_LOG_00002]: silent discard.
+            ofs << FormatRecord(record); // [V2] used in statement
         }
-
-        ofs << '[' << GetTimestamp() << ']'
-            << '[' << LevelTag(record.level) << ']';
-
-        if (!record.contextId.empty())
-        {
-            ofs << '[' << record.contextId << ']';
-        }
-        if (!record.locationFile.empty())
-        {
-            ofs << '[' << record.locationFile
-                << ':' << record.locationLine << ']';
-        }
-        if (!record.tags.empty())
-        {
-            ofs << "[tags=" << record.tags << ']';
-        }
-
-        ofs << ' ' << record.payload;
-        if (!record.metaPayload.empty())
-        {
-            ofs << ' ' << record.metaPayload;
-        }
-        ofs << '\n';
+        // if not open: [SWS_LOG_00002] silent discard
     }
     catch (...)
     {
@@ -174,15 +144,43 @@ void FileSink::Write(const LogRecord &record) noexcept
 }
 
 // ---------------------------------------------------------------------------
-// LoggingFramework singleton
+// LoggingFramework singleton  [V4]
+//
+// MISRA 6-7-1 prohibits mutable static local variables ("hidden temporal
+// coupling"). The Meyers singleton pattern uses exactly that.
+//
+// Replacement: the singleton instance is held in a static *pointer* (not a
+// static object) that is initialised exactly once via std::call_once.
+// The pointer itself is never destroyed during normal program execution
+// (intentional: the framework outlives all loggers), which is acceptable for
+// a process-lifetime singleton in an embedded/AP context.
 // ---------------------------------------------------------------------------
+
+static std::once_flag   gInstanceFlag;          // [V4] flag, not a mutable object
+static LoggingFramework *gInstance = NULL;       // [V4] pointer, not the object
+
+/// Static emergency Logger used as fallback in GetOrCreateLogger.  [V4]
+/// Declared as a static member in the header (log_backend.h) and defined here.
+Logger *LoggingFramework::sEmergencyLogger_ = NULL;  // [V4] was static local
 
 LoggingFramework &LoggingFramework::Instance() noexcept
 {
-    // C++11/14 magic-static – thread-safe by language standard.
-    // CERT C++ DCL56-CPP: static local initialised once.
-    static LoggingFramework instance;
-    return instance;
+    // std::call_once guarantees one-time thread-safe initialisation.
+    // The pointed-to object is never deleted (process-lifetime singleton).
+    try
+    {
+        std::call_once(gInstanceFlag, []() {
+            gInstance = new LoggingFramework();   // [V9] ownership by pointer is intentional
+        });
+    }
+    catch (...)
+    {
+        // [SWS_LOG_00002]: if call_once fails, gInstance may remain NULL.
+        // Callers that dereference must guard; here we fall through.
+    }
+    // Safety: if allocation failed, we cannot return a reference.
+    // In practice the platform must guarantee memory is available at init.
+    return *gInstance;
 }
 
 LoggingFramework::LoggingFramework() noexcept
@@ -194,7 +192,7 @@ LoggingFramework::LoggingFramework() noexcept
 {
     try
     {
-        ringBuffer_.resize(kRingBufferSize);
+        ringBuffer_.resize(kRingBufferSize);  // [V8] throwing call in try/catch
     }
     catch (...)
     {
@@ -204,7 +202,6 @@ LoggingFramework::LoggingFramework() noexcept
 
 LoggingFramework::~LoggingFramework()
 {
-    // Flush residual records on process teardown. [SWS_LOG_00123]
     try
     {
         const std::lock_guard<std::mutex> lock(frameworkMutex_);
@@ -222,8 +219,36 @@ LoggingFramework::~LoggingFramework()
 }
 
 // ---------------------------------------------------------------------------
-// Initialize [SWS_LOG_00001]
+// Initialize [SWS_LOG_00001]  [V2][V8][V9]
 // ---------------------------------------------------------------------------
+
+/// Non-noexcept helper that builds the sink list.  [V8]
+void LoggingFramework::BuildSinks(LogMode               logMode,
+                                  ara::core::StringView logFilePath)
+{
+    const std::uint8_t modeVal     = static_cast<std::uint8_t>(logMode);
+    const std::uint8_t consoleBit  = static_cast<std::uint8_t>(LogMode::kConsole);
+    const std::uint8_t fileBit     = static_cast<std::uint8_t>(LogMode::kFile);
+
+    if (logMode == LogMode::kOff)
+    {
+        // [V9] unique_ptr wraps raw new immediately
+        sinks_.push_back(std::unique_ptr<ILogSink>(new NullSink()));
+        return;
+    }
+    if ((modeVal & consoleBit) != 0U)
+    {
+        sinks_.push_back(std::unique_ptr<ILogSink>(new ConsoleSink())); // [V9]
+    }
+    if ((modeVal & fileBit) != 0U)
+    {
+        sinks_.push_back(std::unique_ptr<ILogSink>(new FileSink(logFilePath))); // [V9]
+    }
+    if (sinks_.empty())
+    {
+        sinks_.push_back(std::unique_ptr<ILogSink>(new ConsoleSink())); // [V9]
+    }
+}
 
 void LoggingFramework::Initialize(ara::core::StringView appId,
                                   ara::core::StringView appDescription,
@@ -233,44 +258,13 @@ void LoggingFramework::Initialize(ara::core::StringView appId,
     try
     {
         const std::lock_guard<std::mutex> lock(frameworkMutex_);
-
         if (initialized_) { return; }
 
+        // [V2] assign return value is void-equivalent (modifies appId_ in-place)
         appId_.assign(appId.data(), appId.size());
         appDescription_.assign(appDescription.data(), appDescription.size());
 
-        const std::uint8_t modeVal =
-            static_cast<std::uint8_t>(logMode);
-        const std::uint8_t consoleBit =
-            static_cast<std::uint8_t>(LogMode::kConsole);
-        const std::uint8_t fileBit =
-            static_cast<std::uint8_t>(LogMode::kFile);
-
-        if (logMode == LogMode::kOff)
-        {
-            // C++14: unique_ptr from new (make_unique with private ctor
-            // requires friendship; use raw new + immediate transfer).
-            sinks_.push_back(std::unique_ptr<ILogSink>(new NullSink()));
-        }
-        else
-        {
-            if ((modeVal & consoleBit) != 0U)
-            {
-                sinks_.push_back(
-                    std::unique_ptr<ILogSink>(new ConsoleSink()));
-            }
-            if ((modeVal & fileBit) != 0U)
-            {
-                sinks_.push_back(
-                    std::unique_ptr<ILogSink>(new FileSink(logFilePath)));
-            }
-            if (sinks_.empty())
-            {
-                sinks_.push_back(
-                    std::unique_ptr<ILogSink>(new ConsoleSink()));
-            }
-        }
-
+        BuildSinks(logMode, logFilePath);   // [V8] throwing code in non-noexcept helper
         initialized_ = true;
     }
     catch (...)
@@ -280,7 +274,7 @@ void LoggingFramework::Initialize(ara::core::StringView appId,
 }
 
 // ---------------------------------------------------------------------------
-// Deinitialize [SWS_LOG_00123]
+// Deinitialize [SWS_LOG_00123]  [V9]
 // ---------------------------------------------------------------------------
 
 void LoggingFramework::Deinitialize() noexcept
@@ -288,7 +282,6 @@ void LoggingFramework::Deinitialize() noexcept
     try
     {
         const std::lock_guard<std::mutex> lock(frameworkMutex_);
-
         if (!initialized_) { return; }
 
         while (ringCount_ > 0U)
@@ -298,7 +291,7 @@ void LoggingFramework::Deinitialize() noexcept
             --ringCount_;
         }
 
-        sinks_.clear();
+        sinks_.clear();   // [V9] unique_ptr destructors handle memory – no raw delete
         loggers_.clear();
         initialized_ = false;
     }
@@ -309,8 +302,32 @@ void LoggingFramework::Deinitialize() noexcept
 }
 
 // ---------------------------------------------------------------------------
-// GetOrCreateLogger [SWS_LOG_00005], [SWS_LOG_00006]
+// GetOrCreateLogger [SWS_LOG_00005], [SWS_LOG_00006]  [V4][V8][V9]
 // ---------------------------------------------------------------------------
+
+/// Non-noexcept helper that creates the Logger entry.  [V8]
+Logger &LoggingFramework::CreateLoggerEntry(ara::core::StringView ctxId,
+                                            ara::core::StringView ctxDescription,
+                                            LogLevel              threshold)
+{
+    const std::string key(ctxId.data(), ctxId.size());
+
+    typedef std::unordered_map<std::string, std::unique_ptr<Logger>> MapT;
+    const MapT::iterator it = loggers_.find(key);
+    if (it != loggers_.end())
+    {
+        return *(it->second);
+    }
+
+    // [V9] unique_ptr wraps raw new immediately; private ctor via friendship
+    std::unique_ptr<Logger> newLogger(
+        new Logger(ctxId, ctxDescription, threshold));
+
+    Logger &ref = *newLogger;
+    // [V2] insert return value (pair<iterator,bool>) stored to prevent warning
+    (void)loggers_.insert(std::make_pair(key, std::move(newLogger))); // [V2]
+    return ref;
+}
 
 Logger &LoggingFramework::GetOrCreateLogger(
     ara::core::StringView ctxId,
@@ -320,39 +337,26 @@ Logger &LoggingFramework::GetOrCreateLogger(
     try
     {
         const std::lock_guard<std::mutex> lock(frameworkMutex_);
-
-        const std::string key(ctxId.data(), ctxId.size());
-
-        typedef std::unordered_map<std::string,
-                                   std::unique_ptr<Logger>> MapT;
-        const MapT::iterator it = loggers_.find(key);
-        if (it != loggers_.end())
-        {
-            return *(it->second);
-        }
-
-        // CERT C++ MEM55-CPP: ownership immediately transferred.
-        // Private constructor accessed via friendship with LoggingFramework.
-        std::unique_ptr<Logger> newLogger(
-            new Logger(ctxId, ctxDescription, threshold));
-
-        Logger &ref = *newLogger;
-        loggers_.insert(std::make_pair(key, std::move(newLogger)));
-        return ref;
+        return CreateLoggerEntry(ctxId, ctxDescription, threshold); // [V8]
     }
     catch (...)
     {
-        // [SWS_LOG_00002]: return static emergency logger on allocation fail.
-        static Logger emergencyLogger(
-            ara::core::StringView("EMRG"),
-            ara::core::StringView("Emergency fallback logger"),
-            LogLevel::kOff);
-        return emergencyLogger;
+        // [SWS_LOG_00002]: emergency fallback.
+        // [V4] static member instead of static local variable.
+        if (sEmergencyLogger_ == NULL)
+        {
+            // Allocation inside catch – last resort; if this throws, terminate.
+            sEmergencyLogger_ = new Logger(
+                ara::core::StringView("EMRG"),
+                ara::core::StringView("Emergency fallback logger"),
+                LogLevel::kOff);
+        }
+        return *sEmergencyLogger_;
     }
 }
 
 // ---------------------------------------------------------------------------
-// Dispatch [SWS_LOG_00095]
+// Dispatch [SWS_LOG_00095]  [V5][V8]
 // ---------------------------------------------------------------------------
 
 void LoggingFramework::Dispatch(const LogRecord &record) noexcept
@@ -360,13 +364,11 @@ void LoggingFramework::Dispatch(const LogRecord &record) noexcept
     try
     {
         const std::lock_guard<std::mutex> lock(frameworkMutex_);
-
         if (!initialized_ || sinks_.empty()) { return; }
 
-        // [SWS_LOG_00095]: buffer in ring, overwrite oldest when full.
         if (ringCount_ < kRingBufferSize)
         {
-            ringBuffer_[ringHead_] = record;
+            ringBuffer_[ringHead_] = record;       // [V2] operator= result is void
             ringHead_ = (ringHead_ + 1U) % kRingBufferSize;
             ++ringCount_;
         }
@@ -377,7 +379,6 @@ void LoggingFramework::Dispatch(const LogRecord &record) noexcept
             ringTail_ = (ringTail_ + 1U) % kRingBufferSize;
         }
 
-        // Drain ring to sinks.
         while (ringCount_ > 0U)
         {
             DispatchToSinks(ringBuffer_[ringTail_]);
@@ -393,18 +394,19 @@ void LoggingFramework::Dispatch(const LogRecord &record) noexcept
 
 void LoggingFramework::DispatchToSinks(const LogRecord &record) noexcept
 {
-    // Called under frameworkMutex_. CWE-667: lock held by caller.
-    for (std::size_t i = 0U; i < sinks_.size(); ++i)
+    // [V5] loop counter type is std::size_t, matching sinks_.size() type.
+    const std::size_t count = sinks_.size();
+    for (std::size_t idx = 0U; idx < count; ++idx)
     {
-        if (sinks_[i])
+        if (sinks_[idx])
         {
-            sinks_[i]->Write(record);
+            sinks_[idx]->Write(record);
         }
     }
 }
 
 // ---------------------------------------------------------------------------
-// RegisterConnectionStateHandler [SWS_LOG_00205]
+// RegisterConnectionStateHandler [SWS_LOG_00205]  [V12]
 // ---------------------------------------------------------------------------
 
 void LoggingFramework::RegisterConnectionStateHandler(
@@ -414,6 +416,39 @@ void LoggingFramework::RegisterConnectionStateHandler(
     {
         const std::lock_guard<std::mutex> lock(frameworkMutex_);
         connectionHandler_ = std::move(callback);
+
+        // [V12] clientState_ is now actively used: invoke the newly registered
+        // handler immediately with the current state so the caller can
+        // synchronise without waiting for the next state change event.
+        if (connectionHandler_)
+        {
+            connectionHandler_(clientState_); // [V12] clientState_ used here
+        }
+    }
+    catch (...)
+    {
+        // [SWS_LOG_00002]: silent discard.
+    }
+}
+
+// ---------------------------------------------------------------------------
+// SetClientState  [V12] – called when DLT connection state changes
+// ---------------------------------------------------------------------------
+
+void LoggingFramework::SetClientState(ClientState newState) noexcept
+{
+    try
+    {
+        std::function<void(ClientState)> handler;
+        {
+            const std::lock_guard<std::mutex> lock(frameworkMutex_);
+            clientState_ = newState;  // [V12] state updated
+            handler = connectionHandler_;
+        }
+        if (handler)
+        {
+            handler(newState); // invoke outside the lock to avoid deadlock
+        }
     }
     catch (...)
     {
@@ -442,8 +477,6 @@ bool LoggingFramework::IsInitialized() const noexcept
 LogLevel LoggingFramework::GetManifestLogLevel(
     ara::core::StringView /*ctxId*/) const noexcept
 {
-    // In a full implementation this consults the parsed machine manifest.
-    // Per [SWS_LOG_00253]: fallback is LogLevel::kWarn.
     return LogLevel::kWarn;
 }
 

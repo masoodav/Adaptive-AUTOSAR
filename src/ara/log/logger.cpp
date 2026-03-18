@@ -62,7 +62,7 @@ Logger::Logger(Logger &&other) noexcept
 // [SWS_LOG_00260] Destructor
 // ---------------------------------------------------------------------------
 
-Logger::~Logger()
+Logger::~Logger() noexcept  // [V7] MISRA 18-4-1: destructor must be noexcept
 {
     // De-registration happens automatically when the LoggingFramework
     // destroys its owned Logger instances during shutdown. [SWS_LOG_00005]
@@ -180,7 +180,10 @@ Logger &CreateLogger(ara::core::StringView ctxId,
 
 Logger &CreateLogger(const ara::core::InstanceSpecifier &is) noexcept // [SWS_LOG_00256]
 {
-    const ara::core::StringView ctxId = is.ToString();
+    // [V11] is.ToString() returns std::string in the project's ara_core.
+    // StringView(const std::string&) is now explicit; use .data() → const char*
+    // which both std::string and ara::core::StringView expose.
+    const ara::core::StringView ctxId(is.ToString().data());
     const ara::core::StringView ctxDescription =
         ara::core::StringView("Created from InstanceSpecifier");
     const LogLevel manifestLevel =

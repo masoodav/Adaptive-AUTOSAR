@@ -21,8 +21,8 @@
 #ifndef ARA_LOG_INTERNAL_LOG_BACKEND_H_
 #define ARA_LOG_INTERNAL_LOG_BACKEND_H_
 
-#include "./common.h"
-#include "./string_view.h"
+#include "common.h"
+#include "string_view.h"
 
 #include <atomic>
 #include <cstdint>
@@ -81,7 +81,6 @@ struct LogRecord final
 class ILogSink
 {
 public:
-    ILogSink()                            = default;
     virtual ~ILogSink()                   = default;
     ILogSink(const ILogSink &)            = delete;
     ILogSink &operator=(const ILogSink &) = delete;
@@ -89,6 +88,9 @@ public:
     ILogSink &operator=(ILogSink &&)      = delete;
 
     virtual void Write(const LogRecord &record) noexcept = 0;
+
+protected:
+    ILogSink() = default;  // [V10] protected – abstract class ctor
 };
 
 // ---------------------------------------------------------------------------
@@ -177,6 +179,21 @@ private:
     ~LoggingFramework();
 
     void DispatchToSinks(const LogRecord &record) noexcept;
+
+    // [V4] Static member emergency logger (replaces static local variable).
+    static Logger *sEmergencyLogger_;
+
+    // [V8] Non-noexcept helpers isolate potentially-throwing code.
+    void  BuildSinks(LogMode logMode, ara::core::StringView logFilePath);
+    Logger &CreateLoggerEntry(ara::core::StringView ctxId,
+                              ara::core::StringView ctxDescription,
+                              LogLevel              threshold);
+
+    // [V12] Update stored client state and invoke connection handler.
+public:
+    void SetClientState(ClientState newState) noexcept;
+
+private:
 
     mutable std::mutex frameworkMutex_;
 

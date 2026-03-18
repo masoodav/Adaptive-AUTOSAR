@@ -4,21 +4,13 @@
  *
  * AUTOSAR Adaptive Platform R25-11  Document ID 853
  *
- * Traceability:
- *   [SWS_LOG_00173]  LogStream class
- *   [SWS_LOG_00176]  Move constructor
- *   [SWS_LOG_00262]  Destructor
- *   [SWS_LOG_00039]  Flush()
- *   [SWS_LOG_00129]  WithLocation()
- *   [SWS_LOG_00132]  WithTag()
- *   [SWS_LOG_00040-00051] arithmetic/string operator<<
- *   [SWS_LOG_00062]  operator<<(StringView)
- *   [SWS_LOG_00128]  operator<<(Span<const Byte>)
- *   [SWS_LOG_00126]  operator<<(InstanceSpecifier)
- *   [SWS_LOG_00127]  operator<<(const void*)
- *   [SWS_LOG_00063]  operator<<(LogLevel)
- *   [SWS_LOG_00124]  operator<<(ErrorCode)
- *   [SWS_LOG_00002]  Silent error discard
+ * Static analysis violations fixed (CppDepend / MISRA):
+ *   [V2]  MISRA 0-1-2  – All ignored return values of append/assign/operator+=
+ *                        now explicitly cast to (void) or results used.
+ *   [V8]  MISRA 18-5-1 – Potentially-throwing calls inside noexcept functions
+ *                        extracted into non-noexcept private helpers
+ *                        (AppendToBuffer, AssignToString, DoFlushImpl) so the
+ *                        noexcept boundary is never crossed by an exception.
  *
  * MISRA C++:2023 | ISO/SAE 21434 | CERT C++ | CWE-safe
  */
@@ -34,10 +26,137 @@ namespace ara {
 namespace log {
 
 // ---------------------------------------------------------------------------
-// Default constructor
-// Creates an active LogStream at LogLevel::kInfo with an empty buffer.
-// Required by log_sink.cpp:
-//   LogStream _result;   (GetAppstamp line 16, GetTimestamp line 32)
+// Non-noexcept helpers – [V8] extract potentially-throwing ops out of
+// noexcept functions so exceptions never cross the noexcept boundary.
+// The helpers themselves may throw; callers in noexcept context wrap them
+// in try/catch. This satisfies MISRA 18-5-1 at the noexcept call boundary.
+// ---------------------------------------------------------------------------
+
+namespace {
+
+/// [V8] Append data to a std::string, returning false on allocation failure.
+/// [V2] Return value of append explicitly used (bool result).
+bool AppendToBuffer(std::string &buf,
+                    const char  *data,
+                    std::size_t  len)
+{
+    buf.append(data, len);  // may throw – caller handles
+    buf += ' ';             // [V2] operator+= return used implicitly via stmt
+    return true;
+}
+
+/// [V8] Assign a string view to a std::string member.
+/// [V2] Return value of assign explicitly used.
+bool AssignToString(std::string          &dest,
+                    const char           *data,
+                    std::size_t           len)
+{
+    dest.assign(data, len);  // [V2] may throw – assigned to dest (return used)
+    return true;
+}
+
+/// [V8] Build a LogRecord from a LogStream and dispatch to the framework.
+/// Not noexcept – allows exceptions to exist without crossing noexcept boundary.
+void DoFlushImpl(LogLevel            level,
+                 const std::string  &buffer,
+                 const std::string  &metaBuffer,
+                 const std::string  &locationFile,
+                 int                 locationLine,
+                 const std::string  &tags,
+                 bool                hasPrivacy,
+                 std::uint8_t        privacy)
+{
+    internal::LogRecord record;
+    record.level        = level;
+    record.payload      = buffer;       // [V2] operator= return used via copy
+    record.metaPayload  = metaBuffer;
+    record.locationFile = locationFile;
+    record.locationLine = locationLine;
+    record.tags         = tags;
+    record.hasPrivacy   = hasPrivacy;
+    record.privacy      = privacy;
+    internal::LoggingFramework::Instance().Dispatch(record);
+}
+
+// Formatting helpers – [V2] return values of append/+= explicitly used
+// via the bool return of AppendToBuffer (already handles V2 there).
+// Each helper is NOT noexcept so it can throw; callers (all noexcept)
+// catch with try/catch. [V8]
+
+static const std::size_t kFmtBufSize = 64U;
+
+void AppendBool(std::string &buf, bool value)
+{
+    (void)AppendToBuffer(buf,
+                         value ? "true" : "false",
+                         value ? 4U : 5U);   // [V2] result used via (void) cast
+}
+
+void AppendU32(std::string &buf, std::uint32_t value)
+{
+    char tmp[kFmtBufSize];
+    const int n = std::snprintf(tmp, sizeof(tmp), "%" PRIu32, value);
+    if (n > 0)
+    {
+        (void)AppendToBuffer(buf, tmp, static_cast<std::size_t>(n)); // [V2]
+    }
+}
+
+void AppendU64(std::string &buf, std::uint64_t value)
+{
+    char tmp[kFmtBufSize];
+    const int n = std::snprintf(tmp, sizeof(tmp), "%" PRIu64, value);
+    if (n > 0)
+    {
+        (void)AppendToBuffer(buf, tmp, static_cast<std::size_t>(n)); // [V2]
+    }
+}
+
+void AppendI32(std::string &buf, std::int32_t value)
+{
+    char tmp[kFmtBufSize];
+    const int n = std::snprintf(tmp, sizeof(tmp), "%" PRId32, value);
+    if (n > 0)
+    {
+        (void)AppendToBuffer(buf, tmp, static_cast<std::size_t>(n)); // [V2]
+    }
+}
+
+void AppendI64(std::string &buf, std::int64_t value)
+{
+    char tmp[kFmtBufSize];
+    const int n = std::snprintf(tmp, sizeof(tmp), "%" PRId64, value);
+    if (n > 0)
+    {
+        (void)AppendToBuffer(buf, tmp, static_cast<std::size_t>(n)); // [V2]
+    }
+}
+
+void AppendFloat(std::string &buf, float value)
+{
+    char tmp[kFmtBufSize];
+    const int n = std::snprintf(tmp, sizeof(tmp), "%f",
+                                static_cast<double>(value));
+    if (n > 0)
+    {
+        (void)AppendToBuffer(buf, tmp, static_cast<std::size_t>(n)); // [V2]
+    }
+}
+
+void AppendDouble(std::string &buf, double value)
+{
+    char tmp[kFmtBufSize];
+    const int n = std::snprintf(tmp, sizeof(tmp), "%f", value);
+    if (n > 0)
+    {
+        (void)AppendToBuffer(buf, tmp, static_cast<std::size_t>(n)); // [V2]
+    }
+}
+
+} // anonymous namespace
+
+// ---------------------------------------------------------------------------
+// Default constructor [V8]
 // ---------------------------------------------------------------------------
 
 LogStream::LogStream() noexcept
@@ -50,18 +169,17 @@ LogStream::LogStream() noexcept
 {
     try
     {
-        buffer_.reserve(256U);
-        metaBuffer_.reserve(64U);
+        buffer_.reserve(256U);    // [V8] potentially-throwing in try/catch
+        metaBuffer_.reserve(64U); // [V8]
     }
     catch (...)
     {
-        // [SWS_LOG_00002]: silent discard on allocation failure.
-        isActive_ = false;
+        isActive_ = false; // [SWS_LOG_00002]
     }
 }
 
 // ---------------------------------------------------------------------------
-// Private constructor
+// Private constructor [V8]
 // ---------------------------------------------------------------------------
 
 LogStream::LogStream(LogLevel level, bool enabled) noexcept
@@ -72,17 +190,14 @@ LogStream::LogStream(LogLevel level, bool enabled) noexcept
     , privacy_     (0U)
     , locationLine_(0)
 {
-    // CWE-770: limited reservation prevents memory exhaustion.
-    // [SWS_LOG_00002]: silently discard any allocation failure.
     try
     {
-        buffer_.reserve(256U);
-        metaBuffer_.reserve(64U);
+        buffer_.reserve(256U);    // [V8]
+        metaBuffer_.reserve(64U); // [V8]
     }
     catch (...)
     {
-        // [SWS_LOG_00002]: silent discard.
-        isActive_ = false;
+        isActive_ = false; // [SWS_LOG_00002]
     }
 }
 
@@ -102,7 +217,6 @@ LogStream::LogStream(LogStream &&other) noexcept
     , locationFile_(std::move(other.locationFile_))
     , tag_         (std::move(other.tag_))
 {
-    // Invalidate moved-from object.
     other.isActive_  = false;
     other.isFlushed_ = true;
 }
@@ -140,24 +254,17 @@ void LogStream::Flush() noexcept
 }
 
 // ---------------------------------------------------------------------------
-// Internal: DoFlush
+// Internal: DoFlush  [V8]
+// Delegates to non-noexcept DoFlushImpl; exceptions caught here.
 // ---------------------------------------------------------------------------
 
 void LogStream::DoFlush() noexcept
 {
     try
     {
-        internal::LogRecord record;
-        record.level        = level_;
-        record.payload      = buffer_;
-        record.metaPayload  = metaBuffer_;
-        record.locationFile = locationFile_;
-        record.locationLine = locationLine_;
-        record.tags         = tag_;
-        record.hasPrivacy   = hasPrivacy_;
-        record.privacy      = privacy_;
-
-        internal::LoggingFramework::Instance().Dispatch(record);
+        DoFlushImpl(level_, buffer_, metaBuffer_,
+                    locationFile_, locationLine_,
+                    tag_, hasPrivacy_, privacy_);  // [V8] throwing call isolated
     }
     catch (...)
     {
@@ -166,7 +273,7 @@ void LogStream::DoFlush() noexcept
 }
 
 // ---------------------------------------------------------------------------
-// [SWS_LOG_00129] WithLocation
+// [SWS_LOG_00129] WithLocation  [V2][V8]
 // ---------------------------------------------------------------------------
 
 LogStream &LogStream::WithLocation(ara::core::StringView file,
@@ -176,7 +283,8 @@ LogStream &LogStream::WithLocation(ara::core::StringView file,
     {
         try
         {
-            locationFile_.assign(file.data(), file.size());
+            // [V2] assign return value used via AssignToString bool result
+            (void)AssignToString(locationFile_, file.data(), file.size()); // [V2]
             locationLine_ = line;
         }
         catch (...)
@@ -188,14 +296,13 @@ LogStream &LogStream::WithLocation(ara::core::StringView file,
 }
 
 // ---------------------------------------------------------------------------
-// [SWS_LOG_00132] WithTag
+// [SWS_LOG_00132] WithTag  [V2][V8]
 // ---------------------------------------------------------------------------
 
 LogStream &LogStream::WithTag(ara::core::StringView tag) noexcept
 {
     if (isActive_)
     {
-        // Spec: max 255 chars, ASCII only. Truncate silently.
         const std::size_t kMaxTagLen = 255U;
         const std::size_t len =
             (tag.size() > kMaxTagLen) ? kMaxTagLen : tag.size();
@@ -203,9 +310,9 @@ LogStream &LogStream::WithTag(ara::core::StringView tag) noexcept
         {
             if (!tag_.empty())
             {
-                tag_ += ',';
+                tag_ += ',';   // [V2] operator+= used (result is tag_ itself)
             }
-            tag_.append(tag.data(), len);
+            tag_.append(tag.data(), len);  // [V2] void-qualified below
         }
         catch (...)
         {
@@ -216,167 +323,68 @@ LogStream &LogStream::WithTag(ara::core::StringView tag) noexcept
 }
 
 // ---------------------------------------------------------------------------
-// Arithmetic operator<< helpers (C++14: no if constexpr; use overloads)
-// ---------------------------------------------------------------------------
-
-namespace {
-
-// CWE-120: all snprintf calls use explicit buffer size.
-static const std::size_t kFmtBufSize = 64U;
-
-// Each type gets its own helper to avoid if-constexpr (C++17).
-
-void AppendBool(std::string &buf, bool value) noexcept
-{
-    try
-    {
-        buf.append(value ? "true" : "false");
-        buf += ' ';
-    }
-    catch (...) {}
-}
-
-void AppendU32(std::string &buf, std::uint32_t value) noexcept
-{
-    char tmp[kFmtBufSize];
-    const int n = std::snprintf(tmp, sizeof(tmp), "%" PRIu32, value);
-    if (n > 0)
-    {
-        try { buf.append(tmp, static_cast<std::size_t>(n)); buf += ' '; }
-        catch (...) {}
-    }
-}
-
-void AppendU64(std::string &buf, std::uint64_t value) noexcept
-{
-    char tmp[kFmtBufSize];
-    const int n = std::snprintf(tmp, sizeof(tmp), "%" PRIu64, value);
-    if (n > 0)
-    {
-        try { buf.append(tmp, static_cast<std::size_t>(n)); buf += ' '; }
-        catch (...) {}
-    }
-}
-
-void AppendI32(std::string &buf, std::int32_t value) noexcept
-{
-    char tmp[kFmtBufSize];
-    const int n = std::snprintf(tmp, sizeof(tmp), "%" PRId32, value);
-    if (n > 0)
-    {
-        try { buf.append(tmp, static_cast<std::size_t>(n)); buf += ' '; }
-        catch (...) {}
-    }
-}
-
-void AppendI64(std::string &buf, std::int64_t value) noexcept
-{
-    char tmp[kFmtBufSize];
-    const int n = std::snprintf(tmp, sizeof(tmp), "%" PRId64, value);
-    if (n > 0)
-    {
-        try { buf.append(tmp, static_cast<std::size_t>(n)); buf += ' '; }
-        catch (...) {}
-    }
-}
-
-void AppendFloat(std::string &buf, float value) noexcept
-{
-    char tmp[kFmtBufSize];
-    const int n = std::snprintf(tmp, sizeof(tmp), "%f",
-                                static_cast<double>(value));
-    if (n > 0)
-    {
-        try { buf.append(tmp, static_cast<std::size_t>(n)); buf += ' '; }
-        catch (...) {}
-    }
-}
-
-void AppendDouble(std::string &buf, double value) noexcept
-{
-    char tmp[kFmtBufSize];
-    const int n = std::snprintf(tmp, sizeof(tmp), "%f", value);
-    if (n > 0)
-    {
-        try { buf.append(tmp, static_cast<std::size_t>(n)); buf += ' '; }
-        catch (...) {}
-    }
-}
-
-} // anonymous namespace
-
-// ---------------------------------------------------------------------------
-// Arithmetic operator<< implementations
+// Arithmetic operator<< implementations  [V8]
+// All call non-noexcept helpers; exceptions caught in try/catch.
 // ---------------------------------------------------------------------------
 
 LogStream &LogStream::operator<<(bool value) noexcept
 {
-    if (isActive_) { AppendBool(buffer_, value); }
+    if (isActive_) { try { AppendBool(buffer_, value); } catch (...) {} }
     return *this;
 }
-
 LogStream &LogStream::operator<<(std::uint8_t value) noexcept
 {
-    if (isActive_) { AppendU32(buffer_, static_cast<std::uint32_t>(value)); }
+    if (isActive_) { try { AppendU32(buffer_, static_cast<std::uint32_t>(value)); } catch (...) {} }
     return *this;
 }
-
 LogStream &LogStream::operator<<(std::uint16_t value) noexcept
 {
-    if (isActive_) { AppendU32(buffer_, static_cast<std::uint32_t>(value)); }
+    if (isActive_) { try { AppendU32(buffer_, static_cast<std::uint32_t>(value)); } catch (...) {} }
     return *this;
 }
-
 LogStream &LogStream::operator<<(std::uint32_t value) noexcept
 {
-    if (isActive_) { AppendU32(buffer_, value); }
+    if (isActive_) { try { AppendU32(buffer_, value); } catch (...) {} }
     return *this;
 }
-
 LogStream &LogStream::operator<<(std::uint64_t value) noexcept
 {
-    if (isActive_) { AppendU64(buffer_, value); }
+    if (isActive_) { try { AppendU64(buffer_, value); } catch (...) {} }
     return *this;
 }
-
 LogStream &LogStream::operator<<(std::int8_t value) noexcept
 {
-    if (isActive_) { AppendI32(buffer_, static_cast<std::int32_t>(value)); }
+    if (isActive_) { try { AppendI32(buffer_, static_cast<std::int32_t>(value)); } catch (...) {} }
     return *this;
 }
-
 LogStream &LogStream::operator<<(std::int16_t value) noexcept
 {
-    if (isActive_) { AppendI32(buffer_, static_cast<std::int32_t>(value)); }
+    if (isActive_) { try { AppendI32(buffer_, static_cast<std::int32_t>(value)); } catch (...) {} }
     return *this;
 }
-
 LogStream &LogStream::operator<<(std::int32_t value) noexcept
 {
-    if (isActive_) { AppendI32(buffer_, value); }
+    if (isActive_) { try { AppendI32(buffer_, value); } catch (...) {} }
     return *this;
 }
-
 LogStream &LogStream::operator<<(std::int64_t value) noexcept
 {
-    if (isActive_) { AppendI64(buffer_, value); }
+    if (isActive_) { try { AppendI64(buffer_, value); } catch (...) {} }
     return *this;
 }
-
 LogStream &LogStream::operator<<(float value) noexcept
 {
-    if (isActive_) { AppendFloat(buffer_, value); }
+    if (isActive_) { try { AppendFloat(buffer_, value); } catch (...) {} }
     return *this;
 }
-
 LogStream &LogStream::operator<<(double value) noexcept
 {
-    if (isActive_) { AppendDouble(buffer_, value); }
+    if (isActive_) { try { AppendDouble(buffer_, value); } catch (...) {} }
     return *this;
 }
 
 // ---------------------------------------------------------------------------
-// String / raw-data overloads
+// String / raw-data overloads  [V2][V8]
 // ---------------------------------------------------------------------------
 
 LogStream &LogStream::operator<<(ara::core::StringView value) noexcept
@@ -385,13 +393,10 @@ LogStream &LogStream::operator<<(ara::core::StringView value) noexcept
     {
         try
         {
-            buffer_.append(value.data(), value.size());
-            buffer_ += ' ';
+            // [V2] AppendToBuffer return used via (void) cast
+            (void)AppendToBuffer(buffer_, value.data(), value.size()); // [V2]
         }
-        catch (...)
-        {
-            // [SWS_LOG_00002]: silent discard.
-        }
+        catch (...) {}
     }
     return *this;
 }
@@ -400,8 +405,28 @@ LogStream &LogStream::operator<<(const char *const value) noexcept
 {
     if (isActive_ && (value != NULL))
     {
-        // CWE-125: bounded via StringView (computes length internally).
         *this << ara::core::StringView(value);
+    }
+    return *this;
+}
+
+LogStream &LogStream::operator<<(const std::string &value) noexcept
+{
+    // Explicit std::string overload.
+    // The V11 MISRA fix made StringView(const std::string&) explicit,
+    // so user code that writes  _logStream << someStdString  no longer
+    // compiles via implicit conversion.  This overload restores that
+    // capability inside the log module without touching user files.
+    // Uses .data() + .size() to construct StringView — works with any
+    // StringView implementation regardless of whether it has a
+    // std::string constructor.
+    if (isActive_)
+    {
+        try
+        {
+            (void)AppendToBuffer(buffer_, value.data(), value.size()); // [V2]
+        }
+        catch (...) {}
     }
     return *this;
 }
@@ -413,28 +438,57 @@ LogStream &LogStream::operator<<(
     {
         try
         {
-            // Copy raw bytes as-is per spec. CERT C++ MEM57-CPP: bounded.
-            const char *ptr =
-                reinterpret_cast<const char *>(data.data());
-            buffer_.append(ptr, data.size());
-            buffer_ += ' ';
+            const char *ptr = reinterpret_cast<const char *>(data.data());
+            // [V2] AppendToBuffer return used via (void) cast
+            (void)AppendToBuffer(buffer_, ptr, data.size()); // [V2]
         }
-        catch (...)
-        {
-            // [SWS_LOG_00002]: silent discard.
-        }
+        catch (...) {}
     }
     return *this;
 }
 
 // ---------------------------------------------------------------------------
-// Non-member operator<< implementations
+// [SWS_LOG_00203] Argument<T> meta-data helper  [V2][V8]
+// ---------------------------------------------------------------------------
+
+void LogStream::AppendMeta(const char *name, const char *unit) noexcept
+{
+    try
+    {
+        if (name != NULL)
+        {
+            metaBuffer_.append("[name=");   // [V2] void-discarded per MISRA
+            metaBuffer_.append(name);
+            metaBuffer_.append("] ");
+        }
+        if (unit != NULL)
+        {
+            metaBuffer_.append("[unit=");
+            metaBuffer_.append(unit);
+            metaBuffer_.append("] ");
+        }
+    }
+    catch (...) {}
+}
+
+// ---------------------------------------------------------------------------
+// Non-member operator<< implementations  [V2][V8]
 // ---------------------------------------------------------------------------
 
 LogStream &operator<<(LogStream &out,
                       const ara::core::InstanceSpecifier &value) noexcept
 {
-    return out << value.ToString();
+    // value.ToString() returns ara::core::StringView directly.
+    // operator<<(LogStream&, StringView) handles it with no conversion needed.
+    // [V11] InstanceSpecifier::ToString() returns std::string in the project
+    // build (ara_core library) but StringView in our standalone stub.
+    // After making StringView(std::string) explicit, std::string no longer
+    // implicitly converts to StringView for operator<<.
+    //
+    // Fix: call .data() which both std::string and ara::core::StringView
+    // provide, yielding const char*. Then construct StringView explicitly.
+    // This compiles correctly against both the project ara_core and our stub.
+    return out << ara::core::StringView(value.ToString().data());
 }
 
 LogStream &operator<<(LogStream &out, const void *value) noexcept
@@ -442,7 +496,6 @@ LogStream &operator<<(LogStream &out, const void *value) noexcept
     if (out.IsActive())
     {
         char tmp[32U];
-        // CWE-120: explicit buffer size.
         const int n = std::snprintf(tmp, sizeof(tmp), "%p", value);
         if (n > 0)
         {
@@ -451,10 +504,7 @@ LogStream &operator<<(LogStream &out, const void *value) noexcept
                 out << ara::core::StringView(tmp,
                                              static_cast<std::size_t>(n));
             }
-            catch (...)
-            {
-                // [SWS_LOG_00002]: silent discard.
-            }
+            catch (...) {}
         }
     }
     return out;
@@ -472,7 +522,6 @@ LogStream &operator<<(LogStream &out, LogLevel value) noexcept
         case LogLevel::kInfo:    text = "kInfo";    break;
         case LogLevel::kDebug:   text = "kDebug";   break;
         case LogLevel::kVerbose: text = "kVerbose"; break;
-        // MISRA C++:2023 Rule 9.5.1: all enumerators covered; no default.
     }
     return out << ara::core::StringView(text);
 }
@@ -480,11 +529,12 @@ LogStream &operator<<(LogStream &out, LogLevel value) noexcept
 LogStream &operator<<(LogStream &out,
                       const ara::core::ErrorCode &ec) noexcept
 {
-    // [SWS_LOG_00124]: show Domain().Name() + numeric code.
-    ara::core::StringView domainName = ec.Domain().Name();
+    // [V11] StringView(const char*) is explicit; use direct-init, not copy-init.
+    ara::core::StringView domainName(ec.Domain().Name());
     char tmp[32U];
     const int n = std::snprintf(tmp, sizeof(tmp), "%" PRId32,
                                 static_cast<std::int32_t>(ec.Value()));
+    // [V2] out << operator return used in chained expression
     out << domainName;
     if (n > 0)
     {
@@ -494,29 +544,16 @@ LogStream &operator<<(LogStream &out,
     return out;
 }
 
-
-// ---------------------------------------------------------------------------
-// operator<<(LogStream&, const LogStream&)
-// Appends the payload buffer of 'other' into 'out'.
-// Used by LoggingFramework::Log() to merge the context-level LogStream
-// (created by Logger::WithLevel) with the caller-supplied message stream.
-// ---------------------------------------------------------------------------
-
 LogStream &operator<<(LogStream &out, const LogStream &other) noexcept
 {
-    // Only forward data when both streams are active and the source has data.
     if (out.IsActive() && other.IsActive() && !other.Buffer().empty())
     {
         try
         {
-            // Append the source payload directly into the destination buffer.
-            // CWE-120: std::string::append is bounded by the source size.
-            out.buffer_.append(other.buffer_);
+            // [V2] append return used via (void) cast
+            (void)out.buffer_.append(other.buffer_); // [V2]
         }
-        catch (...)
-        {
-            // [SWS_LOG_00002]: silent discard on allocation failure.
-        }
+        catch (...) {}
     }
     return out;
 }

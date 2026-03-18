@@ -49,9 +49,9 @@ namespace ara
                  *
                  * Declaration only – definition lives in file_log_sink.cpp.
                  */
-                FileLogSink(std::string filePath,
-                            std::string appId,
-                            std::string appDescription);
+                FileLogSink(const std::string &logFilePath,   // [V6] name matches .cpp
+                            const std::string &appId,          // [V13]
+                            const std::string &appDescription); // [V13]
 
                 ~FileLogSink() = default;
 

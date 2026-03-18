@@ -52,7 +52,7 @@ inline void InitLogging(
     ara::core::StringView         appId,
     ara::core::StringView         appDescription,
     LogMode             logMode,
-    ara::core::StringView         logFilePath = "") noexcept
+    ara::core::StringView         logFilePath = ara::core::StringView("")) noexcept
 {
     internal::LoggingFramework::Instance().Initialize(
         appId, appDescription, logMode, logFilePath);

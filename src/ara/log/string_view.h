@@ -48,7 +48,7 @@ public:
 
     /// From null-terminated C string.
     /// CERT C++ STR11-CPP: nullptr check.
-    StringView(const char *str) noexcept  // NOLINT(google-explicit-constructor)
+    explicit StringView(const char *str) noexcept  // [V11] explicit per MISRA OOD
         : data_(str)
         , size_((str != nullptr) ? std::strlen(str) : 0U)
     {}
@@ -60,7 +60,7 @@ public:
     {}
 
     /// From std::string (implicit – mirrors std::string_view behaviour).
-    StringView(const std::string &str) noexcept  // NOLINT
+    explicit StringView(const std::string &str) noexcept  // [V11] explicit per MISRA OOD
         : data_(str.data()), size_(str.size())
     {}
 

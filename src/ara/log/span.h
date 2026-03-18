@@ -69,7 +69,7 @@ public:
 
     /// From a C-style array (deduced size).
     template <std::size_t N>
-    Span(T (&arr)[N]) noexcept  // NOLINT
+    explicit Span(T (&arr)[N]) noexcept  // [V11] explicit per MISRA OOD
         : data_(arr), size_(N) {}
 
     // -----------------------------------------------------------------------

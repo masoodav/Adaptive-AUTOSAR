@@ -63,19 +63,6 @@ namespace ara
             class LogSink
             {
             public:
-                /**
-                 * @brief Construct with application identity.
-                 *
-                 * [FIX-1] Declaration only – definition is in log_sink.cpp.
-                 * [FIX-4] Initialises mApplicationId (not mAppId).
-                 * [FIX-5] Initialises mApplicationDescription (not mAppDescription).
-                 *
-                 * @param appId          Application identifier string.
-                 * @param appDescription Human-readable application description.
-                 */
-                LogSink(std::string appId,
-                        std::string appDescription);
-
                 LogSink()                           = delete;
                 virtual ~LogSink()                  = default;
                 LogSink(const LogSink &)            = delete;
@@ -94,6 +81,21 @@ namespace ara
                 virtual void Log(const LogStream &logStream) const = 0;
 
             protected:
+                /**
+                 * @brief Construct with application identity.
+                 *
+                 * [V10] Constructor is protected – LogSink is abstract.
+                 * [V13] Parameters passed by const reference, not by value.
+                 * [FIX-1] Declaration only – definition is in log_sink.cpp.
+                 * [FIX-4] Initialises mApplicationId.
+                 * [FIX-5] Initialises mApplicationDescription.
+                 *
+                 * @param appId          Application identifier.
+                 * @param appDescription Human-readable description.
+                 */
+                LogSink(const std::string &appId,           // [V10][V13]
+                        const std::string &appDescription); // [V10][V13]
+
                 /**
                  * @brief Return a LogStream containing the current
                  *        wall-clock timestamp.
