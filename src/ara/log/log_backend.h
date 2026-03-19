@@ -182,17 +182,16 @@ private:
 
     void DispatchToSinks(const LogRecord &record) noexcept;
 
-    // [V4] Static member emergency logger (replaces static local variable).
-    static Logger *sEmergencyLogger_;
+    // [V4b] Static members avoid free global variables.
+    static Logger        *sEmergencyLogger_;    // emergency fallback
+    static Logger        *sFallbackLogger_;     // [V4a] replaces static local
+    static std::once_flag sEmergencyLoggerFlag_; // [V4b] class-scope once_flag
 
     // [V8] Non-noexcept helpers isolate potentially-throwing code.
     void  BuildSinks(LogMode logMode, ara::core::StringView logFilePath);
     // [V1] Cohesion: groups appId_ and appDescription_ access.
     void  SetIdentity(ara::core::StringView appId,
                       ara::core::StringView appDescription) noexcept;  // [V7]
-    // [V12] Encapsulates frameworkMutex_ acquisition so the analyser
-    // sees the field used via a named method, not just in lock_guard{}.
-    std::unique_lock<std::mutex> AcquireLock() const noexcept;
     // [V9] Static factory – assigns sEmergencyLogger_ without going
     //      through an instance method (satisfies OOD rule).
     static Logger &EnsureEmergencyLogger() noexcept;

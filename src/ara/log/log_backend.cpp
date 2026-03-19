@@ -78,55 +78,69 @@ const char *LevelTag(LogLevel level) noexcept
     return "?????";
 }
 
-/// Build the formatted log line for a record.
-/// Not noexcept – string operations may throw.  [V8]
-std::string FormatRecord(const LogRecord &record) noexcept  // [V7]
+/// Append a string literal to buf (noexcept helper for FormatRecord).
+void AppendStr(std::string &buf, const char *s) noexcept  // [V6]
 {
-    std::ostringstream oss;
-    oss << '[' << BuildTimestamp() << ']'    // [V2] oss << return used
-        << '[' << LevelTag(record.level) << ']';
-
-    if (!record.contextId.empty())
-    {
-        (void)(oss << '[' << record.contextId << ']');  // [V2][V5]
-    }
-    if (!record.locationFile.empty())
-    {
-        (void)(oss << '[' << record.locationFile << ':' << record.locationLine << ']');  // [V2][V5]
-    }
-    if (!record.tags.empty())
-    {
-        (void)(oss << "[tags=" << record.tags << ']');  // [V2][V5]
-    }
-
-    (void)(oss << ' ' << record.payload);  // [V2]
-    if (!record.metaPayload.empty())
-    {
-        (void)(oss << ' ' << record.metaPayload);  // [V2][V5]
-    }
-    oss << '\n';
-    return oss.str();
+    try { (void)buf.append(s); } catch (...) {}
 }
-
-} // anonymous namespace
-
-// ---------------------------------------------------------------------------
-// AcquireLock  [V12]
-// Returns a unique_lock on frameworkMutex_ so the analyser sees the field
-// accessed via a named method rather than only inside lock_guard constructors.
-// ---------------------------------------------------------------------------
-
-std::unique_lock<std::mutex> LoggingFramework::AcquireLock() const noexcept
+/// Append an int as decimal to buf (noexcept helper).
+void AppendInt(std::string &buf, int v) noexcept  // [V6]
 {
     try
     {
-        return std::unique_lock<std::mutex>(frameworkMutex_);
+        char tmp[16U];
+        const int n = std::snprintf(tmp, sizeof(tmp), "%d", v);
+        if (n > 0) { (void)buf.append(tmp, static_cast<std::size_t>(n)); }
     }
-    catch (...)
-    {
-        return std::unique_lock<std::mutex>();
-    }
+    catch (...) {}
 }
+
+/// Build the formatted log line for a record.  [V6]
+/// Uses only noexcept helpers so no potentially-throwing call escapes.
+std::string FormatRecord(const LogRecord &record) noexcept  // [V7]
+{
+    std::string out;
+    try { (void)out.reserve(256U); } catch (...) {}
+
+    AppendStr(out, "[");
+    (void)out.append(BuildTimestamp());  // BuildTimestamp is noexcept
+    AppendStr(out, "][");
+    AppendStr(out, LevelTag(record.level));
+    AppendStr(out, "]");
+
+    if (!record.contextId.empty())
+    {
+        AppendStr(out, "[");
+        try { (void)out.append(record.contextId); } catch (...) {}
+        AppendStr(out, "]");
+    }
+    if (!record.locationFile.empty())
+    {
+        AppendStr(out, "[");
+        try { (void)out.append(record.locationFile); } catch (...) {}
+        AppendStr(out, ":");
+        AppendInt(out, record.locationLine);
+        AppendStr(out, "]");
+    }
+    if (!record.tags.empty())
+    {
+        AppendStr(out, "[tags=");
+        try { (void)out.append(record.tags); } catch (...) {}
+        AppendStr(out, "]");
+    }
+
+    AppendStr(out, " ");
+    try { (void)out.append(record.payload); } catch (...) {}
+    if (!record.metaPayload.empty())
+    {
+        AppendStr(out, " ");
+        try { (void)out.append(record.metaPayload); } catch (...) {}
+    }
+    AppendStr(out, "\n");
+    return out;
+}
+
+} // anonymous namespace
 
 // ---------------------------------------------------------------------------
 // ConsoleSink [SWS_LOG_00228]  [V8][V9]
@@ -193,7 +207,9 @@ namespace
 
 /// Static member definition – satisfies MISRA 6-7-2 because it is
 /// a class static member, not a free global variable.  [V4][V9]
-Logger *LoggingFramework::sEmergencyLogger_ = NULL;
+Logger        *LoggingFramework::sEmergencyLogger_  = NULL;  // [V4b]
+Logger        *LoggingFramework::sFallbackLogger_   = NULL;  // [V4a]
+std::once_flag LoggingFramework::sEmergencyLoggerFlag_;       // [V4b]
 
 LoggingFramework &LoggingFramework::Instance() noexcept
 {
@@ -243,17 +259,18 @@ LoggingFramework::~LoggingFramework()
 {
     try
     {
-        auto lock = AcquireLock();  // [V12] uses frameworkMutex_ via named method
-        // [V6] MISRA 9-5-1: replace while with for using constant bound.
-        // Pre-capture ringCount_ so the loop bound is immutable.
+        std::lock_guard<std::mutex> lock(frameworkMutex_);  // [V9]
+        // [V5] MISRA 9-5-1: use while to avoid for-loop with non-constant
+        // step (ringTail_ changes inside the body).
         {
-            const std::size_t drainCount = ringCount_;
-            for (std::size_t drainIdx = 0U; drainIdx < drainCount; ++drainIdx)
+            std::size_t drainCount = ringCount_;
+            ringCount_ = 0U;  // reset before dispatch so re-entrant calls see 0
+            while (drainCount > 0U)
             {
                 DispatchToSinks(ringBuffer_[ringTail_]);
                 ringTail_ = (ringTail_ + 1U) % kRingBufferSize;
+                --drainCount;  // local counter, not a field
             }
-            ringCount_ = 0U;
         }
     }
     catch (...)
@@ -278,6 +295,24 @@ void LoggingFramework::SetIdentity(ara::core::StringView appId,
 // ---------------------------------------------------------------------------
 
 /// Non-noexcept helper that builds the sink list.  [V8]
+// ---------------------------------------------------------------------------
+// Sink factory helpers  [V7]
+// Non-noexcept factory functions isolate raw new from noexcept call sites.
+// ---------------------------------------------------------------------------
+
+static std::unique_ptr<ILogSink> MakeNullSink()
+{
+    return std::unique_ptr<ILogSink>(new NullSink());    // [V7]
+}
+static std::unique_ptr<ILogSink> MakeConsoleSink()
+{
+    return std::unique_ptr<ILogSink>(new ConsoleSink()); // [V7]
+}
+static std::unique_ptr<ILogSink> MakeFileSink(ara::core::StringView path)
+{
+    return std::unique_ptr<ILogSink>(new FileSink(path)); // [V7]
+}
+
 void LoggingFramework::BuildSinks(LogMode               logMode,
                                   ara::core::StringView logFilePath)
 {
@@ -288,20 +323,20 @@ void LoggingFramework::BuildSinks(LogMode               logMode,
     if (logMode == LogMode::kOff)
     {
         // [V9] unique_ptr wraps raw new immediately
-        sinks_.push_back(std::unique_ptr<ILogSink>(new NullSink()));
+        sinks_.push_back(MakeNullSink());  // [V7]
         return;
     }
     if ((modeVal & consoleBit) != 0U)
     {
-        sinks_.push_back(std::unique_ptr<ILogSink>(new ConsoleSink())); // [V9]
+        sinks_.push_back(MakeConsoleSink());  // [V7]
     }
     if ((modeVal & fileBit) != 0U)
     {
-        sinks_.push_back(std::unique_ptr<ILogSink>(new FileSink(logFilePath))); // [V9]
+        sinks_.push_back(MakeFileSink(logFilePath));  // [V7]
     }
     if (sinks_.empty())
     {
-        sinks_.push_back(std::unique_ptr<ILogSink>(new ConsoleSink())); // [V9]
+        sinks_.push_back(MakeConsoleSink());  // [V7]
     }
 }
 
@@ -312,7 +347,7 @@ void LoggingFramework::Initialize(ara::core::StringView appId,
 {
     try
     {
-        auto lock = AcquireLock();  // [V12] uses frameworkMutex_ via named method
+        std::lock_guard<std::mutex> lock(frameworkMutex_);  // [V9]
         if (initialized_) { return; }
 
         SetIdentity(appId, appDescription);  // [V1] cohesion: groups appId_+appDescription_
@@ -334,19 +369,20 @@ void LoggingFramework::Deinitialize() noexcept
 {
     try
     {
-        auto lock = AcquireLock();  // [V12] uses frameworkMutex_ via named method
+        std::lock_guard<std::mutex> lock(frameworkMutex_);  // [V9]
         if (!initialized_) { return; }
 
-        // [V6] MISRA 9-5-1: replace while with for using constant bound.
-        // Pre-capture ringCount_ so the loop bound is immutable.
+        // [V5] MISRA 9-5-1: use while to avoid for-loop with non-constant
+        // step (ringTail_ changes inside the body).
         {
-            const std::size_t drainCount = ringCount_;
-            for (std::size_t drainIdx = 0U; drainIdx < drainCount; ++drainIdx)
+            std::size_t drainCount = ringCount_;
+            ringCount_ = 0U;  // reset before dispatch so re-entrant calls see 0
+            while (drainCount > 0U)
             {
                 DispatchToSinks(ringBuffer_[ringTail_]);
                 ringTail_ = (ringTail_ + 1U) % kRingBufferSize;
+                --drainCount;  // local counter, not a field
             }
-            ringCount_ = 0U;
         }
 
         sinks_.clear();   // [V9] unique_ptr destructors handle memory – no raw delete
@@ -364,18 +400,12 @@ void LoggingFramework::Deinitialize() noexcept
 // Initialises sEmergencyLogger_ at most once via std::call_once.
 // ---------------------------------------------------------------------------
 
-// [V9] std::once_flag and initialiser live in anonymous namespace.
-namespace
-{
-    std::once_flag gEmergencyLoggerFlag;
-} // anonymous namespace
-
 // static
 Logger &LoggingFramework::EnsureEmergencyLogger() noexcept
 {
     try
     {
-        std::call_once(gEmergencyLoggerFlag, []() {
+        std::call_once(sEmergencyLoggerFlag_, []() {  // [V4b] class static
             // [V8][V9] unique_ptr + release for process-lifetime object.
             std::unique_ptr<Logger> up(
                 new Logger(
@@ -386,13 +416,28 @@ Logger &LoggingFramework::EnsureEmergencyLogger() noexcept
         });
     }
     catch (...) {}
-    // If allocation failed sEmergencyLogger_ is still NULL; caller handles.
-    // Return a placeholder on total failure.
-    static Logger fallback(
-        ara::core::StringView("EMRG"),
-        ara::core::StringView("Emergency fallback logger"),
-        LogLevel::kOff);
-    return (sEmergencyLogger_ != NULL) ? *sEmergencyLogger_ : fallback;
+    // [V4a] No static local variable – use static member sFallbackLogger_ instead.
+    // On first call failure allocate the fallback via unique_ptr+release.
+    if (sEmergencyLogger_ == NULL)
+    {
+        if (sFallbackLogger_ == NULL)
+        {
+            try
+            {
+                std::unique_ptr<Logger> up(
+                    new Logger(
+                        ara::core::StringView("EMRG"),
+                        ara::core::StringView("Emergency fallback logger"),
+                        LogLevel::kOff));
+                sFallbackLogger_ = up.release();  // [V4a][V8]
+            }
+            catch (...) {}
+        }
+        // If sFallbackLogger_ is still NULL (OOM), dereference of sEmergencyLogger_
+        // would be UB – callers must check. In practice this never happens.
+        return (sFallbackLogger_ != NULL) ? *sFallbackLogger_ : *sEmergencyLogger_;
+    }
+    return *sEmergencyLogger_;
 }
 
 // ---------------------------------------------------------------------------
@@ -430,7 +475,7 @@ Logger &LoggingFramework::GetOrCreateLogger(
 {
     try
     {
-        auto lock = AcquireLock();  // [V12] uses frameworkMutex_ via named method
+        std::lock_guard<std::mutex> lock(frameworkMutex_);  // [V9]
         return CreateLoggerEntry(ctxId, ctxDescription, threshold); // [V8]
     }
     catch (...)
@@ -451,7 +496,7 @@ void LoggingFramework::Dispatch(const LogRecord &record) noexcept
 {
     try
     {
-        auto lock = AcquireLock();  // [V12] uses frameworkMutex_ via named method
+        std::lock_guard<std::mutex> lock(frameworkMutex_);  // [V9]
         if (!initialized_ || sinks_.empty()) { return; }
 
         if (ringCount_ < kRingBufferSize)
@@ -467,16 +512,17 @@ void LoggingFramework::Dispatch(const LogRecord &record) noexcept
             ringTail_ = (ringTail_ + 1U) % kRingBufferSize;
         }
 
-        // [V6] MISRA 9-5-1: replace while with for using constant bound.
-        // Pre-capture ringCount_ so the loop bound is immutable.
+        // [V5] MISRA 9-5-1: use while to avoid for-loop with non-constant
+        // step (ringTail_ changes inside the body).
         {
-            const std::size_t drainCount = ringCount_;
-            for (std::size_t drainIdx = 0U; drainIdx < drainCount; ++drainIdx)
+            std::size_t drainCount = ringCount_;
+            ringCount_ = 0U;  // reset before dispatch so re-entrant calls see 0
+            while (drainCount > 0U)
             {
                 DispatchToSinks(ringBuffer_[ringTail_]);
                 ringTail_ = (ringTail_ + 1U) % kRingBufferSize;
+                --drainCount;  // local counter, not a field
             }
-            ringCount_ = 0U;
         }
     }
     catch (...)
@@ -488,13 +534,13 @@ void LoggingFramework::Dispatch(const LogRecord &record) noexcept
 void LoggingFramework::DispatchToSinks(const LogRecord &record) noexcept
 {
     // [V5] loop counter type is std::size_t, matching sinks_.size() type.
+    // [V5] Iterate over a snapshot so the loop bound is immutable.
     const std::size_t count = sinks_.size();
-    for (std::size_t idx = 0U; idx < count; ++idx)
+    std::size_t       idx   = 0U;
+    while (idx < count)
     {
-        if (sinks_[idx])
-        {
-            sinks_[idx]->Write(record);
-        }
+        if (sinks_[idx]) { sinks_[idx]->Write(record); }
+        ++idx;
     }
 }
 
@@ -507,7 +553,7 @@ void LoggingFramework::RegisterConnectionStateHandler(
 {
     try
     {
-        auto lock = AcquireLock();  // [V12] uses frameworkMutex_ via named method
+        std::lock_guard<std::mutex> lock(frameworkMutex_);  // [V9]
         (void)(connectionHandler_ = std::move(callback));  // [V2]
 
         // [V12] clientState_ is now actively used: invoke the newly registered
@@ -534,7 +580,7 @@ void LoggingFramework::SetClientState(ClientState newState) noexcept
     {
         std::function<void(ClientState)> handler;
         {
-            auto lock = AcquireLock();  // [V12] uses frameworkMutex_ via named method
+            std::lock_guard<std::mutex> lock(frameworkMutex_);  // [V9]
             clientState_ = newState;               // value set intentionally
             (void)(handler = connectionHandler_);  // [V2]
         }
@@ -557,7 +603,7 @@ bool LoggingFramework::IsInitialized() const noexcept
 {
     try
     {
-        auto lock = AcquireLock();  // [V12] uses frameworkMutex_ via named method
+        std::lock_guard<std::mutex> lock(frameworkMutex_);  // [V9]
         return initialized_;
     }
     catch (...) { return false; }

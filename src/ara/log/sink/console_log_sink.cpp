@@ -26,10 +26,10 @@ namespace ara
             {
                 LogStream   timestamp = GetTimestamp();  // [V3] was: _timestamp
                 LogStream   appstamp  = GetAppstamp();   // [V3] was: _appstamp
-                timestamp << cWhitespace << appstamp << cWhitespace << logStream;
+                (void)(timestamp << cWhitespace << appstamp << cWhitespace << logStream);  // [V3a]
                 std::string logString = timestamp.ToString(); // [V3] was: _logString
 
-                std::cout << logString << std::endl;
+                (void)(std::cout << logString << std::endl);  // [V3a]
             }
         }
     }

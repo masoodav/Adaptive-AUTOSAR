@@ -31,14 +31,14 @@ namespace ara
             {
                 LogStream   timestamp = GetTimestamp();   // [V3] was: _timestamp
                 LogStream   appstamp  = GetAppstamp();    // [V3] was: _appstamp
-                timestamp << cWhitespace << appstamp << cWhitespace << logStream;
+                (void)(timestamp << cWhitespace << appstamp << cWhitespace << logStream);  // [V3a]
                 std::string logString = timestamp.ToString(); // [V3] was: _logString
 
                 std::ofstream logFileStream(
                     mLogFilePath, std::ofstream::out | std::ofstream::app);
                 if (logFileStream.is_open())
                 {
-                    logFileStream << logString << std::endl;
+                    (void)(logFileStream << logString << std::endl);  // [V3a]
                 }
             }
         }
