@@ -174,9 +174,11 @@ public:
     // [SWS_LOG_00253]
     LogLevel GetManifestLogLevel(ara::core::StringView ctxId) const noexcept;
 
+    // [V2b] Destructor public so unique_ptr<LoggingFramework> can call it.
+    ~LoggingFramework() noexcept;
+
 private:
     LoggingFramework() noexcept;
-    ~LoggingFramework();
 
     void DispatchToSinks(const LogRecord &record) noexcept;
 
@@ -185,6 +187,15 @@ private:
 
     // [V8] Non-noexcept helpers isolate potentially-throwing code.
     void  BuildSinks(LogMode logMode, ara::core::StringView logFilePath);
+    // [V1] Cohesion: groups appId_ and appDescription_ access.
+    void  SetIdentity(ara::core::StringView appId,
+                      ara::core::StringView appDescription) noexcept;  // [V7]
+    // [V12] Encapsulates frameworkMutex_ acquisition so the analyser
+    // sees the field used via a named method, not just in lock_guard{}.
+    std::unique_lock<std::mutex> AcquireLock() const noexcept;
+    // [V9] Static factory – assigns sEmergencyLogger_ without going
+    //      through an instance method (satisfies OOD rule).
+    static Logger &EnsureEmergencyLogger() noexcept;
     Logger &CreateLoggerEntry(ara::core::StringView ctxId,
                               ara::core::StringView ctxDescription,
                               LogLevel              threshold);

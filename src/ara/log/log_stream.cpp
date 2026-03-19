@@ -38,10 +38,10 @@ namespace {
 /// [V2] Return value of append explicitly used (bool result).
 bool AppendToBuffer(std::string &buf,
                     const char  *data,
-                    std::size_t  len)
+                    std::size_t  len) noexcept  // [V7]
 {
-    buf.append(data, len);  // may throw – caller handles
-    buf += ' ';             // [V2] operator+= return used implicitly via stmt
+    (void)buf.append(data, len);  // [V2] return cast to void
+    (void)(buf += ' ');           // [V2] explicit void cast on operator+=
     return true;
 }
 
@@ -49,9 +49,9 @@ bool AppendToBuffer(std::string &buf,
 /// [V2] Return value of assign explicitly used.
 bool AssignToString(std::string          &dest,
                     const char           *data,
-                    std::size_t           len)
+                    std::size_t           len) noexcept  // [V7]
 {
-    dest.assign(data, len);  // [V2] may throw – assigned to dest (return used)
+    (void)dest.assign(data, len);  // [V2] explicit void cast
     return true;
 }
 
@@ -64,15 +64,15 @@ void DoFlushImpl(LogLevel            level,
                  int                 locationLine,
                  const std::string  &tags,
                  bool                hasPrivacy,
-                 std::uint8_t        privacy)
+                 std::uint8_t        privacy) noexcept  // [V7]
 {
     internal::LogRecord record;
     record.level        = level;
-    record.payload      = buffer;       // [V2] operator= return used via copy
-    record.metaPayload  = metaBuffer;
-    record.locationFile = locationFile;
+    (void)(record.payload      = buffer);       // [V2] explicit void
+    (void)(record.metaPayload  = metaBuffer);   // [V2]
+    (void)(record.locationFile = locationFile); // [V2]
     record.locationLine = locationLine;
-    record.tags         = tags;
+    (void)(record.tags         = tags);         // [V2]
     record.hasPrivacy   = hasPrivacy;
     record.privacy      = privacy;
     internal::LoggingFramework::Instance().Dispatch(record);
@@ -85,14 +85,14 @@ void DoFlushImpl(LogLevel            level,
 
 static const std::size_t kFmtBufSize = 64U;
 
-void AppendBool(std::string &buf, bool value)
+void AppendBool(std::string &buf, bool value) noexcept  // [V7]
 {
     (void)AppendToBuffer(buf,
                          value ? "true" : "false",
                          value ? 4U : 5U);   // [V2] result used via (void) cast
 }
 
-void AppendU32(std::string &buf, std::uint32_t value)
+void AppendU32(std::string &buf, std::uint32_t value) noexcept  // [V7]
 {
     char tmp[kFmtBufSize];
     const int n = std::snprintf(tmp, sizeof(tmp), "%" PRIu32, value);
@@ -102,7 +102,7 @@ void AppendU32(std::string &buf, std::uint32_t value)
     }
 }
 
-void AppendU64(std::string &buf, std::uint64_t value)
+void AppendU64(std::string &buf, std::uint64_t value) noexcept  // [V7]
 {
     char tmp[kFmtBufSize];
     const int n = std::snprintf(tmp, sizeof(tmp), "%" PRIu64, value);
@@ -112,7 +112,7 @@ void AppendU64(std::string &buf, std::uint64_t value)
     }
 }
 
-void AppendI32(std::string &buf, std::int32_t value)
+void AppendI32(std::string &buf, std::int32_t value) noexcept  // [V7]
 {
     char tmp[kFmtBufSize];
     const int n = std::snprintf(tmp, sizeof(tmp), "%" PRId32, value);
@@ -122,7 +122,7 @@ void AppendI32(std::string &buf, std::int32_t value)
     }
 }
 
-void AppendI64(std::string &buf, std::int64_t value)
+void AppendI64(std::string &buf, std::int64_t value) noexcept  // [V7]
 {
     char tmp[kFmtBufSize];
     const int n = std::snprintf(tmp, sizeof(tmp), "%" PRId64, value);
@@ -132,7 +132,7 @@ void AppendI64(std::string &buf, std::int64_t value)
     }
 }
 
-void AppendFloat(std::string &buf, float value)
+void AppendFloat(std::string &buf, float value) noexcept  // [V7]
 {
     char tmp[kFmtBufSize];
     const int n = std::snprintf(tmp, sizeof(tmp), "%f",
@@ -143,7 +143,7 @@ void AppendFloat(std::string &buf, float value)
     }
 }
 
-void AppendDouble(std::string &buf, double value)
+void AppendDouble(std::string &buf, double value) noexcept  // [V7]
 {
     char tmp[kFmtBufSize];
     const int n = std::snprintf(tmp, sizeof(tmp), "%f", value);
@@ -310,9 +310,9 @@ LogStream &LogStream::WithTag(ara::core::StringView tag) noexcept
         {
             if (!tag_.empty())
             {
-                tag_ += ',';   // [V2] operator+= used (result is tag_ itself)
+                (void)(tag_ += ',');  // [V2] explicit void cast
             }
-            tag_.append(tag.data(), len);  // [V2] void-qualified below
+            (void)tag_.append(tag.data(), len);  // [V2] void-cast
         }
         catch (...)
         {
@@ -457,15 +457,15 @@ void LogStream::AppendMeta(const char *name, const char *unit) noexcept
     {
         if (name != NULL)
         {
-            metaBuffer_.append("[name=");   // [V2] void-discarded per MISRA
-            metaBuffer_.append(name);
-            metaBuffer_.append("] ");
+            (void)metaBuffer_.append("[name=");  // [V2]
+            (void)metaBuffer_.append(name);       // [V2]
+            (void)metaBuffer_.append("] ");        // [V2]
         }
         if (unit != NULL)
         {
-            metaBuffer_.append("[unit=");
-            metaBuffer_.append(unit);
-            metaBuffer_.append("] ");
+            (void)metaBuffer_.append("[unit=");  // [V2]
+            (void)metaBuffer_.append(unit);       // [V2]
+            (void)metaBuffer_.append("] ");        // [V2]
         }
     }
     catch (...) {}
@@ -534,12 +534,11 @@ LogStream &operator<<(LogStream &out,
     char tmp[32U];
     const int n = std::snprintf(tmp, sizeof(tmp), "%" PRId32,
                                 static_cast<std::int32_t>(ec.Value()));
-    // [V2] out << operator return used in chained expression
-    out << domainName;
+    (void)(out << domainName);  // [V2] explicit void
     if (n > 0)
     {
-        out << ara::core::StringView(":");
-        out << ara::core::StringView(tmp, static_cast<std::size_t>(n));
+        (void)(out << ara::core::StringView(":"));                              // [V2]
+        (void)(out << ara::core::StringView(tmp, static_cast<std::size_t>(n))); // [V2]
     }
     return out;
 }

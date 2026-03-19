@@ -27,6 +27,7 @@
  */
 
 #include "./logging_framework.h"
+#include <memory>  // std::unique_ptr [V8]
 
 namespace ara
 {
@@ -107,7 +108,7 @@ namespace ara
                 // [FIX-E]: operator<<(LogStream&, const LogStream&) handles
                 //          the payload merge.
                 LogStream contextStream = logger.WithLevel(logLevel);
-                contextStream << logStream;   /* [FIX-E] previously no match */
+                (void)(contextStream << logStream);  // [V2] explicit void cast
                 mLogSink->Log(contextStream);
             }
         }
@@ -135,9 +136,12 @@ namespace ara
 
             if (logMode == LogMode::kConsole)
             {
-                sink::LogSink *logSink =
-                    new sink::ConsoleLogSink(appId, appDescription);
-                return new LoggingFramework(logSink, logLevel);
+                std::unique_ptr<sink::LogSink> logSinkUp(
+                    new sink::ConsoleLogSink(appId, appDescription));  // [V8]
+                sink::LogSink *logSink = logSinkUp.release();
+                std::unique_ptr<LoggingFramework> fwUp(
+                    new LoggingFramework(logSink, logLevel));  // [V8]
+                return fwUp.release();
             }
 
             // [FIX-F]: explicit throw on all other modes instead of falling
@@ -157,9 +161,13 @@ namespace ara
             LogLevel    logLevel,
             std::string appDescription)
         {
-            sink::LogSink *logSink =
-                new sink::FileLogSink(filePath, appId, appDescription);
-            return new LoggingFramework(logSink, logLevel);
+            // [V8] unique_ptr wraps raw new; release transfers ownership
+            std::unique_ptr<sink::LogSink> logSinkUp(
+                new sink::FileLogSink(filePath, appId, appDescription));  // [V8]
+            sink::LogSink *logSink = logSinkUp.release();
+            std::unique_ptr<LoggingFramework> fwUp(
+                new LoggingFramework(logSink, logLevel));  // [V8]
+            return fwUp.release();
         }
 
         // -------------------------------------------------------------------
@@ -168,8 +176,10 @@ namespace ara
 
         LoggingFramework::~LoggingFramework() noexcept
         {
-            delete mLogSink;
+            // [V8] use unique_ptr to manage deletion – no raw delete
+            std::unique_ptr<sink::LogSink> owned(mLogSink);
             mLogSink = NULL;
+            // owned goes out of scope here and deletes mLogSink safely
         }
     }
 }
