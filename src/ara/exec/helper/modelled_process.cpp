@@ -1,4 +1,5 @@
 #include "./modelled_process.h"
+#include <stdexcept>
 
 namespace ara
 {
@@ -6,69 +7,60 @@ namespace ara
     {
         namespace helper
         {
+            // Static member initialization
             const log::LogMode ModelledProcess::cLogMode{log::LogMode::kConsole};
             const std::string ModelledProcess::cContextId{"Lifetime"};
             const std::string ModelledProcess::cContextDescription{"Application lifetime logs"};
-            const log::LogLevel ModelledProcess::cLogLevel{log::LogLevel::kInfo};
-            const log::LogLevel ModelledProcess::cErrorLevel{log::LogLevel::kError};
+            const ara::log::LogLevel ModelledProcess::cLogLevel{ara::log::LogLevel::kInfo};
+            const ara::log::LogLevel ModelledProcess::cErrorLevel{ara::log::LogLevel::kError};
 
             ModelledProcess::ModelledProcess(
-                std::string appId, AsyncBsdSocketLib::Poller *poller) : Poller{poller},
-                                                                        mLoggingFramework{log::LoggingFramework::Create(appId, cLogMode)},
-                                                                        mLogger{mLoggingFramework->CreateLogger(cContextId, cContextDescription, cLogLevel)},
-                                                                        mCancellationToken{false}
+                std::string appId,
+                AsyncBsdSocketLib::Poller *poller,
+                ara::log::LogLevel cLogLevel)
+                : mPoller(poller)
+                , mLoggingFramework(log::LoggingFramework::Create(appId, cLogMode))
+                , mLogger(const_cast<log::Logger*>(&mLoggingFramework->CreateLogger(cContextId, cContextDescription, cLogLevel)))
             {
+                if (!mPoller) {
+                    throw std::invalid_argument("Poller cannot be null");
+                }
             }
 
-            void ModelledProcess::Log(
-                log::LogLevel logLevel, const log::LogStream &logStream)
+            void ModelledProcess::Initialize(const std::map<std::string, std::string> &arguments)
             {
-                mLoggingFramework->Log(mLogger, logLevel, logStream);
-            }
-
-            bool ModelledProcess::WaitForActivation()
-            {
-                auto cActivationReturnResult{
-                    mDeterministicClient.WaitForActivation()};
-                const exec::ActivationReturnType cActivationReturn{
-                    cActivationReturnResult.Value()};
-
-                return cActivationReturn != exec::ActivationReturnType::kTerminate;
-            }
-
-            void ModelledProcess::Initialize(
-                const std::map<std::string, std::string> &arguments)
-            {
-                // Invalid exit code refers to a not-started or terminated process
-                if (!mExitCode.valid())
-                {
-                    mExitCode =
-                        std::async(
-                            std::launch::async,
-                            &ModelledProcess::Main,
-                            this, &mCancellationToken, arguments);
+                if (!mExitCode.valid()) {
+                    mExitCode = std::async(
+                        std::launch::async,
+                        &ModelledProcess::Main,
+                        this,
+                        &mCancellationToken,
+                        arguments
+                    );
                 }
             }
 
             int ModelledProcess::Terminate()
             {
-                const int cSuccessfulExitCode{0};
-                int _result;
+                int result = cSuccessfulExitCode;
 
-                if (mExitCode.valid())
-                {
-                    // Set the cancellation token and wait for the exit code
+                if (mExitCode.valid()) {
                     mCancellationToken = true;
-                    _result = mExitCode.get();
-                }
-                else
-                {
-                    // Exit with the successful code if the process has not been started
-                    // or it has been already disposed after the termination
-                    _result = cSuccessfulExitCode;
+                    result = mExitCode.get();
                 }
 
-                return _result;
+                return result;
+            }
+
+            void ModelledProcess::Log(ara::log::LogLevel logLevel, const ara::log::LogStream &logStream)
+            {
+                mLoggingFramework->Log(*mLogger, logLevel, logStream);
+            }
+
+            bool ModelledProcess::WaitForActivation()
+            {
+                auto activationResult = mDeterministicClient.WaitForActivation();
+                return activationResult.Value() != exec::ActivationReturnType::kTerminate;
             }
 
             ModelledProcess::~ModelledProcess()

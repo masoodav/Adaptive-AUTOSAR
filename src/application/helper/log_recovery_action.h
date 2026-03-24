@@ -19,7 +19,7 @@ namespace application
             static const ara::log::LogLevel cErrorLevel;
 
             ara::log::LoggingFramework *mLoggingFramework;
-            ara::log::Logger mLogger;
+            ara::log::Logger *mLogger;
 
         public:
             LogRecoveryAction();

@@ -1,8 +1,9 @@
 #ifndef CONSOLE_LOG_SINK_H
 #define CONSOLE_LOG_SINK_H
 
-#include <iostream>
 #include "./log_sink.h"
+#include "../logger.h"
+#include <iostream>
 
 namespace ara
 {
@@ -20,8 +21,9 @@ namespace ara
                     std::string appId,
                     std::string appDescription);
 
-                ConsoleLogSink() = delete;
                 void Log(const LogStream &logStream) const override;
+                LogStream GetTimestamp() const override;
+                LogStream GetAppstamp() const override;
             };
         }
     }

@@ -57,7 +57,7 @@ namespace application
                             functionGroup, _shortName)
                             .Value()));
 
-                ara::log::LogStream _logStream;
+                ara::log::LogStream _logStream = ara::log::LogStream::Create(*mLogger, cLogLevel);
                 std::string _functionGroupInstance{
                     functionGroup.GetInstance().ToString()};
                 _logStream << "State: " << _shortName << " of function group: " << _functionGroupInstance << " is configured.";
@@ -80,7 +80,7 @@ namespace application
                 mFunctionGroups.push_back(
                     std::move(ara::exec::FunctionGroup::Create(_shortName).Value()));
 
-                ara::log::LogStream _logStream;
+                ara::log::LogStream _logStream = ara::log::LogStream::Create(*mLogger, cLogLevel);
                 _logStream << "Function group: " << _shortName << " is configured.";
                 Log(cLogLevel, _logStream);
 
@@ -92,7 +92,7 @@ namespace application
         void StateManagement::onUndefinedState(
             const ara::exec::ExecutionErrorEvent &event)
         {
-            ara::log::LogStream _logStream;
+            ara::log::LogStream _logStream = ara::log::LogStream::Create(*mLogger, cErrorLevel);
             _logStream
                 << "Function group: "
                 << event.functionGroup->GetInstance().ToString()
@@ -145,7 +145,7 @@ namespace application
         {
             const std::string cConfigArgument{helper::ArgumentConfiguration::cConfigArgument};
 
-            ara::log::LogStream _logStream;
+            ara::log::LogStream _logStream = ara::log::LogStream::Create(*mLogger, cLogLevel);
 
             try
             {
@@ -154,7 +154,7 @@ namespace application
                 const helper::RpcConfiguration cRpcConfiguration{
                     getRpcConfiguration(cConfigFilepath)};
                 ara::com::someip::rpc::SocketRpcClient _rpcClient(
-                    Poller,
+                    mPoller,
                     cRpcConfiguration.ipAddress,
                     cRpcConfiguration.portNumber,
                     cRpcConfiguration.protocolVersion);

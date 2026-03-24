@@ -54,7 +54,7 @@ namespace application
                             future.get();
                             future = Future{};
 
-                            ara::log::LogStream _logStream;
+                            ara::log::LogStream _logStream = ara::log::LogStream::Create(*mLogger, cLogLevel);
                             _logStream << message;
                             Log(cLogLevel, _logStream);
                         }

@@ -237,6 +237,8 @@ add_library(
   ${source_ara_core_dir}/error_code.cpp
   ${source_ara_core_dir}/instance_specifier.h
   ${source_ara_core_dir}/instance_specifier.cpp
+  ${source_ara_core_dir}/span.h
+  ${source_ara_core_dir}/string_view.h
 )
 
 add_library(

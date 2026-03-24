@@ -12,7 +12,7 @@ namespace application
 
         LogRecoveryAction::LogRecoveryAction() : ara::phm::RecoveryAction(cInstance),
                                                  mLoggingFramework{ara::log::LoggingFramework::Create(cInstance.ToString(), cLogMode)},
-                                                 mLogger{mLoggingFramework->CreateLogger(cContextId, cContextDescription, cErrorLevel)}
+                                                 mLogger{const_cast<ara::log::Logger*>(&mLoggingFramework->CreateLogger(cContextId, cContextDescription, cErrorLevel))}
         {
         }
 
@@ -25,7 +25,7 @@ namespace application
             if (IsOffered() &&
                 executionError.executionError == cExtendedVehicleExpiration)
             {
-                ara::log::LogStream _logStream;
+                ara::log::LogStream _logStream = ara::log::LogStream::Create(*mLogger, cErrorLevel);
 
                 switch (supervision)
                 {
@@ -45,7 +45,7 @@ namespace application
                 _logStream << " is expired on "
                            << executionError.functionGroup->GetInstance().ToString();
                 
-                mLoggingFramework->Log(mLogger, cErrorLevel, _logStream);
+                mLoggingFramework->Log(*mLogger, cErrorLevel, _logStream);
             }
         }
 

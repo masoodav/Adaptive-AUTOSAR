@@ -136,7 +136,7 @@ namespace application
             const std::atomic_bool *cancellationToken,
             const std::map<std::string, std::string> &arguments)
         {
-            ara::log::LogStream _logStream;
+            ara::log::LogStream _logStream = ara::log::LogStream::Create(*mLogger, cLogLevel);
 
             try
             {
@@ -146,7 +146,7 @@ namespace application
                 const helper::RpcConfiguration cRpcConfiguration{
                     getRpcConfiguration(cConfigFilepath)};
                 ara::com::someip::rpc::SocketRpcServer _rpcServer(
-                    Poller,
+                    mPoller,
                     cRpcConfiguration.ipAddress,
                     cRpcConfiguration.portNumber,
                     cRpcConfiguration.protocolVersion);

@@ -23,17 +23,17 @@ namespace ara
                 static const std::string cContextId;
                 static const std::string cContextDescription;
 
-                log::LoggingFramework *mLoggingFramework;
-                log::Logger mLogger;
+                log::LoggingFramework* mLoggingFramework;
                 DeterministicClient mDeterministicClient;
                 std::atomic_bool mCancellationToken;
                 std::future<int> mExitCode;
 
             protected:
+                log::Logger *mLogger;
                 /// @brief Information severity log level
-                static const log::LogLevel cLogLevel;
+                static const ara::log::LogLevel cLogLevel;
                 /// @brief Error severity log level
-                static const log::LogLevel cErrorLevel;
+                static const ara::log::LogLevel cErrorLevel;
 
                 /// @brief Successful application exit code
                 const int cSuccessfulExitCode{0};
@@ -41,45 +41,36 @@ namespace ara
                 const int cUnsuccessfulExitCode{1};
 
                 /// @brief Global poller for TCP/IP network communication
-                AsyncBsdSocketLib::Poller *const Poller;
+                AsyncBsdSocketLib::Poller *const mPoller;
 
-                /// @brief Constructor
-                /// @param appId Modelled process application ID for logging
-                /// @param poller Global poller for network communication
+            public:
+                // Public constructor
                 ModelledProcess(
-                    std::string appId, AsyncBsdSocketLib::Poller *poller);
+                    std::string appId,
+                    AsyncBsdSocketLib::Poller *poller,
+                    ara::log::LogLevel cLogLevel = ara::log::LogLevel::kInfo);
 
+                /// @brief Initialize the process model to run the main block
+                void Initialize(const std::map<std::string, std::string> &arguments);
+
+                /// @brief Terminate the process model
+                int Terminate();
+
+                virtual ~ModelledProcess();
+
+            protected:
                 /// @brief Main running block of the process
-                /// @param arguments Initialization arguments keys and their corresponding values
-                /// @param cancellationToken Token to be for cancelling the main cycle
-                /// @return Exit code
-                /// @note Exit code zero means the graceful shutdown of the process.
                 virtual int Main(
                     const std::atomic_bool *cancellationToken,
                     const std::map<std::string, std::string> &arguments) = 0;
 
-                /// @brief Log a steam
-                /// @param logLevel Stream log severity level
-                /// @param logStream Stream to be logged
+                /// @brief Log a stream
                 void Log(
-                    log::LogLevel logLevel, const log::LogStream &logStream);
+                    ara::log::LogLevel logLevel,
+                    const ara::log::LogStream &logStream);
 
                 /// @brief Wait for the next main function activation cycle
-                /// @return True if the cycle is not terminiated yet, otherwise false
                 bool WaitForActivation();
-
-            public:
-                /// @brief Initialize the process model to run the main block
-                /// @param arguments Initialization arguments keys and their corresponding values
-                /// @see Main(const std::map<std::string, std::string> &)
-                void Initialize(const std::map<std::string, std::string> &arguments);
-
-                /// @brief Terminate the process model
-                /// @return Returned exit code from the main running block
-                /// @note The caller will blocked until the termination be finished.
-                int Terminate();
-
-                virtual ~ModelledProcess();
             };
         }
     }

@@ -42,7 +42,7 @@ namespace application
             {
                 mNetworkLayer =
                     new ara::com::someip::sd::SdNetworkLayer(
-                        Poller, cNicIpAddress,
+                        mPoller, cNicIpAddress,
                         _networkConfiguration.ipAddress,
                         _networkConfiguration.portNumber);
             }
@@ -111,7 +111,7 @@ namespace application
             if (cDebouncingStatus ==
                 ara::diag::DebouncingState::kFinallyHealed)
             {
-                ara::log::LogStream _logStream;
+                ara::log::LogStream _logStream = ara::log::LogStream::Create(*mLogger, cLogLevel);
                 _logStream << "Telematic Control Module (Extended Vehicle AA) is discovered.";
                 Log(cLogLevel, _logStream);
 
@@ -125,7 +125,7 @@ namespace application
                 }
 
                 mObdToDoipConverter =
-                    new doip::ObdToDoipConverter(Poller, _ipAddress, _port);
+                    new doip::ObdToDoipConverter(mPoller, _ipAddress, _port);
 
                 mObdEmulator =
                     new ObdEmulator::ObdEmulator(
@@ -146,7 +146,7 @@ namespace application
                     ara::diag::DTCFormatType::kDTCFormatUDS};
                 const auto cDtcNumberResult{mEvent->GetDTCNumber(cDtcFormat)};
 
-                ara::log::LogStream _logStream;
+                ara::log::LogStream _logStream = ara::log::LogStream::Create(*mLogger, cErrorLevel);
                 _logStream << mEventSpecifier->ToString()
                            << " is failed with DTC "
                            << cDtcNumberResult.Value();
@@ -188,7 +188,7 @@ namespace application
 
         void DiagnosticManager::onInitMonitor(ara::diag::InitMonitorReason reason)
         {
-            ara::log::LogStream _logStream;
+            ara::log::LogStream _logStream = ara::log::LogStream::Create(*mLogger, cLogLevel);
 
             switch (reason)
             {
@@ -283,7 +283,7 @@ namespace application
             const std::string cDmConfigFilepath{arguments.at(cDmConfigArgument)};
             const arxml::ArxmlReader cReader(cDmConfigFilepath);
 
-            ara::log::LogStream _logStream;
+            ara::log::LogStream _logStream = ara::log::LogStream::Create(*mLogger, cLogLevel);
 
             try
             {

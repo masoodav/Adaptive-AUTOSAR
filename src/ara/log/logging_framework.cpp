@@ -28,14 +28,12 @@ namespace ara
             std::string ctxDescription,
             LogLevel ctxDefLogLevel)
         {
-            {
-                Logger _logger =
-                    Logger::CreateLogger(ctxId, ctxDescription, ctxDefLogLevel);
-                mLoggers.push_back(std::move(_logger));
-                const Logger &_result = mLoggers.back();
+            Logger _logger =
+                Logger::CreateLogger(ctxId, ctxDescription, ctxDefLogLevel);
+            mLoggers.push_back(std::move(_logger));
+            const Logger &_result = mLoggers.back();
 
-                return _result;
-            }
+            return _result;
         }
 
         void LoggingFramework::Log(
@@ -47,9 +45,9 @@ namespace ara
 
             if (_isLevelEnabled)
             {
-                LogStream _logStreamContex = logger.WithLevel(logLevel);
-                _logStreamContex << logStream;
-                mLogSink->Log(_logStreamContex);
+                LogStream _logStreamContext = logger.WithLevel(logLevel);
+                _logStreamContext << logStream.GetBuffer();
+                mLogSink->Log(_logStreamContext);
             }
         }
 
@@ -79,6 +77,7 @@ namespace ara
                 throw std::invalid_argument(
                     "The log mode is not currently supported.");
             }
+            return nullptr;
         }
 
         LoggingFramework *LoggingFramework::Create(

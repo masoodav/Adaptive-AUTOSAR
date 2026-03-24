@@ -47,7 +47,7 @@ namespace application
         const auto cSdIp{cSdIpNode.GetValue<std::string>()};
         mNetworkLayer =
             new ara::com::someip::sd::SdNetworkLayer(
-                Poller, cNicIpAddress, cSdIp, cSdPort);
+                mPoller, cNicIpAddress, cSdIp, cSdPort);
     }
 
     helper::NetworkConfiguration ExtendedVehicle::getNetworkConfiguration(
@@ -186,7 +186,7 @@ namespace application
             return false;
         }
 
-        ara::log::LogStream _logStream;
+        ara::log::LogStream _logStream = ara::log::LogStream::Create(*mLogger, cLogLevel);
 
         if (_jsonResponse.isMember(cVehiclesKey))
         {
@@ -306,7 +306,7 @@ namespace application
 
         mDoipServer =
             new doip::DoipServer(
-                Poller,
+                mPoller,
                 mCurl,
                 mResourcesUrl,
                 _networkConfiguration.ipAddress,
@@ -325,8 +325,7 @@ namespace application
         const std::string cEvConfigArgument{helper::ArgumentConfiguration::cEvConfigArgument};
         const std::string cEvConfigFilepath{arguments.at(cEvConfigArgument)};
         const arxml::ArxmlReader cReader(cEvConfigFilepath);
-
-        ara::log::LogStream _logStream;
+        ara::log::LogStream _logStream = ara::log::LogStream::Create(*mLogger, cLogLevel);
 
         try
         {

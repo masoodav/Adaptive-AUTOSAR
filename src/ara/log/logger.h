@@ -1,83 +1,71 @@
-#ifndef LOGGER_H
-#define LOGGER_H
+#ifndef ARALOG_LOGGER_H
+#define ARALOG_LOGGER_H
 
-#include "./log_stream.h"
+#include "common.h"
+#include "log_stream.h"
+#include "../core/instance_specifier.h"
 
-namespace ara
-{
-    namespace log
-    {
-        /// @brief Logger of a specific context
-        class Logger
-        {
-        private:
-            std::string mContextId;
-            std::string mContextDescription;
-            LogLevel mContextDefaultLogLevel;
-            Logger(std::string ctxId,
-                   std::string ctxDescription,
-                   LogLevel ctxDefLogLevel);
+namespace ara::log {
 
-        public:
-            Logger() = delete;
-            ~Logger() noexcept = default;
+/// \brief Connection state handler type
+using ConnectionStateHandler = void(*)(ClientState state);
 
-            /// @brief Remote logging client connection state
-            /// @returns Client connection state
-            ClientState RemoteClientState() const noexcept;
+/// \brief Main logger class
+class Logger final {
+public:
+    Logger() noexcept = default;
+    ~Logger() noexcept;
 
-            /// @brief Create a stream for fatal logs
-            /// @returns Fatal log stream in the current context
-            /// @see WithLevel
-            LogStream LogFatal() const;
+    // Disable copying
+    Logger(const Logger&) = delete;
+    Logger& operator=(const Logger&) = delete;
 
-            /// @brief Create a stream for error logs
-            /// @returns Error log stream in the current context
-            /// @see WithLevel
-            LogStream LogError() const;
+    // Allow moving
+    Logger(Logger&& other) noexcept;
+    Logger& operator=(Logger&& other) noexcept;
 
-            /// @brief Create a stream for warning logs
-            /// @returns Warning log stream in the current context
-            /// @see WithLevel
-            LogStream LogWarn() const;
+    /// \brief Check if logging is enabled for given level
+    bool IsEnabled(LogLevel level) const noexcept;
 
-            /// @brief Create a stream for information logs
-            /// @returns Information log stream in the current context
-            /// @see WithLevel
-            LogStream LogInfo() const;
+    /// \brief Convenience methods for each log level
+    LogStream LogFatal() noexcept;
+    LogStream LogError() noexcept;
+    LogStream LogWarn() noexcept;
+    LogStream LogInfo() noexcept;
+    LogStream LogDebug() noexcept;
+    LogStream LogVerbose() noexcept;
 
-            /// @brief Create a stream for debug logs
-            /// @returns Debug log stream in the current context
-            /// @see WithLevel
-            LogStream LogDebug() const;
+    /// \brief Create a log stream with specific level
+    LogStream WithLevel(LogLevel level) const noexcept;
 
-            /// @brief Create a stream for verbose logs
-            /// @returns Verbose log stream in the current context
-            /// @see WithLevel
-            LogStream LogVerbose() const;
+    /// \brief Create a logger with default log level
+    static Logger CreateLogger(std::string ctxId, std::string ctxDescription) noexcept;
 
-            /// @brief Determine whether a certian log level is enabled in the current context or not
-            /// @param logLevel Input log severity level
-            /// @returns True if the level is enabled; otherwise false
-            bool IsEnabled(LogLevel logLevel) const noexcept;
+    /// \brief Create a logger with specific log level
+    static Logger CreateLogger(std::string ctxId, std::string ctxDescription, LogLevel level) noexcept;
 
-            /// @brief Create a stream for certian level logs
-            /// @param logLevel Input log severity level
-            /// @returns Log stream with the determined level in the current context
-            LogStream WithLevel(LogLevel logLevel) const;
+    /// \brief Generic logging with explicit level
+    void Log(LogLevel level, ara::core::StringView fmt, ...) noexcept;
 
-            /// @brief Logger factory
-            /// @param ctxId Context ID
-            /// @param ctxDescription Context description
-            /// @param ctxDefLogLevel Context default log level
-            /// @returns A new logger for that specifc context
-            /// @note Log with less severity than the default log level are ignored.
-            static Logger CreateLogger(
-                std::string ctxId,
-                std::string ctxDescription,
-                LogLevel ctxDefLogLevel);
-        };
-    }
-}
+    /// \brief Set log level threshold
+    void SetThreshold(LogLevel level) noexcept;
 
-#endif
+    /// \brief Register connection state handler
+    static void RegisterConnectionStateHandler(ConnectionStateHandler handler) noexcept;
+
+private:
+    friend class LogStream;
+
+    explicit Logger(ara::core::InstanceSpecifier spec, LogLevel default_level) noexcept;
+
+    LogStream CreateStream(LogLevel level) const noexcept;
+
+    ara::core::InstanceSpecifier m_spec;
+    LogLevel m_threshold = LogLevel::kInfo;
+    bool m_initialized = false;
+    static ConnectionStateHandler g_connection_handler;
+};
+
+} // namespace ara::log
+
+#endif // ARALOG_LOGGER_H

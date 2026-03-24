@@ -325,7 +325,7 @@ namespace application
         // const std::string cEvConfigFilepath{arguments.at(cEvConfigArgument)};
         // const arxml::ArxmlReader cReader(cEvConfigFilepath);
 
-        ara::log::LogStream _logStream;
+        ara::log::LogStream _logStream = ara::log::LogStream::Create(*mLogger, cLogLevel);
 
         try
         {

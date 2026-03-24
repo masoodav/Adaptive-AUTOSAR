@@ -1,107 +1,77 @@
-#ifndef LOG_STREAM_H
-#define LOG_STREAM_H
+#ifndef ARALOG_LOG_STREAM_H
+#define ARALOG_LOG_STREAM_H
 
-#include <vector>
-#include <utility>
-#include "../core/error_code.h"
+#include "common.h"
 #include "../core/instance_specifier.h"
-#include "./common.h"
-#include "./argument.h"
+#include <chrono>
+#include <cstdint>
+#include <string>
 
-namespace ara
-{
-    namespace log
-    {
-        /// @brief A stream pipeline to combine log entities
-        class LogStream final
-        {
-        private:
-            std::string mLogs;
-            void concat(std::string &&log);
+namespace ara::log {
+class Logger; // Forward declaration
 
-        public:
-            /// @brief Clear the stream
-            void Flush() noexcept;
-
-            /// @brief Arugment insertion operator
-            /// @tparam T Argument playload type
-            /// @param arg An agrgument
-            /// @returns Reference to the current log stream
-            template <typename T>
-            LogStream &operator<<(const Argument<T> &arg)
-            {
-                std::string _argumentString = arg.ToString();
-                concat(std::move(_argumentString));
-
-                return *this;
-            }
-
-            /// @brief LogStream insertion operator
-            /// @param value Another logstream
-            /// @returns Reference to the current log stream
-            LogStream &operator<<(const LogStream &value);
-
-            /// @brief Boolean insertion operator
-            /// @param value A boolean value
-            /// @returns Reference to the current log stream
-            LogStream &operator<<(bool value);
-
-            /// @brief Byte insertion operator
-            /// @param value A byte value
-            /// @returns Reference to the current log stream
-            LogStream &operator<<(uint8_t value);
-
-            /// @brief Unsigned integer insertion operator
-            /// @param value An unsigned integer value
-            /// @returns Reference to the current log stream
-            LogStream &operator<<(uint32_t value);
-
-            /// @brief Float insertion operator
-            /// @param value A float value
-            /// @returns Reference to the current log stream
-            LogStream &operator<<(float value);
-
-            /// @brief String insertion operator
-            /// @param value A string
-            /// @returns Reference to the current log stream
-            LogStream &operator<<(const std::string &value);
-
-            /// @brief C-syle string insertion operator
-            /// @param value Character array
-            /// @returns Reference to the current log stream
-            LogStream &operator<<(const char *value);
-
-            /// @brief LogLeve insertion operator
-            /// @param value Log severity level
-            /// @returns Reference to the current log stream
-            LogStream &operator<<(LogLevel value);
-
-            /// @brief ErrorCode insertion operator
-            /// @param value An error code object
-            /// @returns Reference to the current log stream
-            LogStream &operator<<(const ara::core::ErrorCode &value);
-
-            /// @brief InstanceSpecifier insertion operator
-            /// @param value An instance specifier object
-            /// @returns Reference to the current log stream
-            LogStream &operator<<(const ara::core::InstanceSpecifier &value) noexcept;
-
-            /// @brief Data array insertion operator
-            /// @param value Data byte vector
-            /// @returns Reference to the current log stream
-            LogStream &operator<<(std::vector<std::uint8_t> value);
-
-            /// @brief Log stream at a certian file and a certian line within the file
-            /// @param file File name
-            /// @param line Line number
-            /// @returns Reference to the current log stream
-            LogStream &WithLocation(std::string file, int line);
-
-            /// @brief Convert the current log stream to a standard string
-            /// @returns Serialized log stream string
-            std::string ToString() const noexcept;
-        };
-    }
+// Forward declare sink classes
+namespace sink {
+    class ConsoleLogSink;
+    class FileLogSink;
 }
 
-#endif
+/// \brief Log message stream builder
+class LogStream final {
+public:
+    LogStream(const LogStream&) = delete;
+    LogStream& operator=(const LogStream&) = delete;
+    LogStream& operator=(LogStream&&) = delete;
+
+    LogStream(LogStream&& other) noexcept;
+    ~LogStream() noexcept;
+
+    /// \brief Send the current message buffer
+    void Flush() noexcept;
+
+    /// \brief Add source location to message
+    LogStream& WithLocation(ara::core::StringView file, int line) noexcept;
+
+    /// \brief Get the message buffer as a string
+    std::string GetBuffer() const noexcept { return m_buffer; }
+
+    // Stream operators for various types
+    LogStream& operator<<(std::uint8_t value) noexcept;
+    LogStream& operator<<(std::uint16_t value) noexcept;
+    LogStream& operator<<(std::uint32_t value) noexcept;
+    LogStream& operator<<(std::uint64_t value) noexcept;
+    LogStream& operator<<(std::int8_t value) noexcept;
+    LogStream& operator<<(bool value) noexcept;
+    LogStream& operator<<(std::int64_t value) noexcept;
+    LogStream& operator<<(std::int32_t value) noexcept;
+    LogStream& operator<<(std::int16_t value) noexcept;
+    LogStream& operator<<(float value) noexcept;
+    LogStream& operator<<(double value) noexcept;
+    LogStream& operator<<(ara::core::StringView str) noexcept;
+    LogStream& operator<<(const char* str) noexcept;
+    LogStream& operator<<(const void* ptr) noexcept;
+    LogStream& operator<<(LogLevel level) noexcept;
+    LogStream& operator<<(const ara::core::ErrorCode& ec) noexcept;
+    LogStream& operator<<(const ara::core::InstanceSpecifier& spec) noexcept;
+    LogStream& operator<<(const std::string& str) noexcept;
+
+    /// \brief Create a new LogStream with a specific logger and level
+    static LogStream Create(Logger& logger, LogLevel level) noexcept;
+
+private:
+    friend class Logger;
+    friend class sink::ConsoleLogSink;
+    friend class sink::FileLogSink;
+
+    explicit LogStream(Logger& logger, LogLevel level) noexcept;
+    void InternalSend() noexcept;
+
+    Logger* m_logger;
+    LogLevel m_level;
+    std::string m_buffer;
+    bool m_flushed = false;
+};
+
+} // namespace ara::log
+
+#endif // ARALOG_LOG_STREAM_H

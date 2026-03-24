@@ -294,7 +294,7 @@ namespace application
             const std::string cConfigArgument{
                 helper::ArgumentConfiguration::cPhmConfigArgument};
 
-            ara::log::LogStream _logStream;
+            ara::log::LogStream _logStream = ara::log::LogStream::Create(*mLogger, cLogLevel);
 
             try
             {
