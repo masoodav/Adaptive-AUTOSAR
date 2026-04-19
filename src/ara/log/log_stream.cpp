@@ -158,6 +158,8 @@ std::string FormatBytes(ara::core::Span<const ara::core::Byte> value) noexcept
 
 LogStream::LogStream(std::shared_ptr<State> state) noexcept : state_(std::move(state)) {}
 
+LogStream::LogStream() noexcept : state_(std::shared_ptr<State>(new State(std::shared_ptr<Logger::State>(), LogLevel::kOff))) {}
+
 LogStream::LogStream(LogStream&& other) noexcept : state_(std::move(other.state_)) {}
 
 LogStream::~LogStream() noexcept
@@ -170,7 +172,91 @@ LogStream::~LogStream() noexcept
 
 void LogStream::Flush() noexcept
 {
+    if (state_ && (!state_->logger))
+    {
+        state_->arguments.clear();
+        state_->file.clear();
+        state_->line = 0;
+        state_->has_location = false;
+        state_->tag.clear();
+        state_->has_tag = false;
+        state_->privacy = 0U;
+        state_->has_privacy = false;
+        return;
+    }
+
     SubmitSnapshot(state_);
+}
+
+std::string LogStream::ToString() const
+{
+    if (!state_)
+    {
+        return std::string();
+    }
+
+    std::ostringstream stream;
+    bool needs_separator = false;
+
+    if (state_->logger)
+    {
+        if (!state_->logger->ctx_id.empty())
+        {
+            stream << state_->logger->ctx_id;
+            needs_separator = true;
+        }
+
+        if (!state_->logger->ctx_description.empty())
+        {
+            if (needs_separator)
+            {
+                stream << ' ';
+            }
+            stream << state_->logger->ctx_description;
+            needs_separator = true;
+        }
+    }
+
+    for (const std::string& argument : state_->arguments)
+    {
+        if (needs_separator)
+        {
+            stream << ' ';
+        }
+        stream << argument;
+        needs_separator = true;
+    }
+
+    if (state_->has_tag)
+    {
+        if (needs_separator)
+        {
+            stream << ' ';
+        }
+        stream << "tag:" << state_->tag;
+        needs_separator = true;
+    }
+
+    if (state_->has_location)
+    {
+        if (needs_separator)
+        {
+            stream << ' ';
+        }
+        stream << state_->file << ':' << state_->line;
+        needs_separator = true;
+    }
+
+    if (state_->has_privacy)
+    {
+        if (needs_separator)
+        {
+            stream << ' ';
+        }
+        stream << "privacy:" << static_cast<unsigned int>(state_->privacy);
+    }
+
+    return stream.str();
 }
 
 LogStream& LogStream::WithLocation(ara::core::StringView file, int line) noexcept
@@ -260,6 +346,12 @@ LogStream& LogStream::operator<<(double value) noexcept
     return *this;
 }
 
+LogStream& LogStream::operator<<(const std::string& value) noexcept
+{
+    AppendPayload(value);
+    return *this;
+}
+
 LogStream& LogStream::operator<<(ara::core::StringView value) noexcept
 {
     AppendPayload(value.ToString());
@@ -275,6 +367,24 @@ LogStream& LogStream::operator<<(const char* const value) noexcept
 LogStream& LogStream::operator<<(ara::core::Span<const ara::core::Byte> data) noexcept
 {
     AppendPayload(internal::FormatValue(data, Dflt()));
+    return *this;
+}
+
+LogStream& LogStream::operator<<(const std::vector<std::uint8_t>& data) noexcept
+{
+    std::ostringstream stream;
+    for (std::size_t index = 0U; index < data.size(); ++index)
+    {
+        stream << std::hex << std::nouppercase << std::setfill('0') << std::setw(2)
+               << static_cast<unsigned int>(data[index]);
+    }
+    AppendPayload(stream.str());
+    return *this;
+}
+
+LogStream& LogStream::operator<<(const LogStream& value) noexcept
+{
+    AppendPayload(value.ToString());
     return *this;
 }
 

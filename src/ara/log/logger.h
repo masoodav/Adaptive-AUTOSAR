@@ -206,6 +206,15 @@ Argument<typename std::decay<T>::type> Arg(
     return Argument<ValueType>(static_cast<ValueType>(arg), name, unit, format);
 }
 
+class Logger;
+
+Logger& CreateLogger(const ara::core::InstanceSpecifier& is) noexcept;
+Logger& CreateLogger(ara::core::StringView ctxId, ara::core::StringView ctxDescription) noexcept;
+Logger& CreateLogger(
+    ara::core::StringView ctxId,
+    ara::core::StringView ctxDescription,
+    LogLevel ctxDefLogLevel) noexcept;
+
 class Logger final
 {
 public:
@@ -225,6 +234,24 @@ public:
 
     Logger() = delete;
     ~Logger();
+
+    static Logger& CreateLogger(const ara::core::InstanceSpecifier& is) noexcept
+    {
+        return ara::log::CreateLogger(is);
+    }
+
+    static Logger& CreateLogger(ara::core::StringView ctxId, ara::core::StringView ctxDescription) noexcept
+    {
+        return ara::log::CreateLogger(ctxId, ctxDescription);
+    }
+
+    static Logger& CreateLogger(
+        ara::core::StringView ctxId,
+        ara::core::StringView ctxDescription,
+        LogLevel ctxDefLogLevel) noexcept
+    {
+        return ara::log::CreateLogger(ctxId, ctxDescription, ctxDefLogLevel);
+    }
 
     bool IsEnabled(LogLevel logLevel) const noexcept;
 
@@ -257,13 +284,6 @@ private:
     friend Logger& CreateLogger(ara::core::StringView ctxId, ara::core::StringView ctxDescription) noexcept;
     friend class LogStream;
 };
-
-Logger& CreateLogger(const ara::core::InstanceSpecifier& is) noexcept;
-Logger& CreateLogger(ara::core::StringView ctxId, ara::core::StringView ctxDescription) noexcept;
-Logger& CreateLogger(
-    ara::core::StringView ctxId,
-    ara::core::StringView ctxDescription,
-    LogLevel ctxDefLogLevel) noexcept;
 
 void RegisterConnectionStateHandler(ConnectionStateHandler callback) noexcept;
 

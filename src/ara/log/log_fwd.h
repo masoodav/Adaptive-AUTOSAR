@@ -11,6 +11,7 @@ namespace log
 
 enum class ClientState : std::int8_t;
 enum class LogLevel : std::uint8_t;
+enum class LogMode : std::uint8_t;
 enum class Fmt : std::uint16_t;
 
 struct Format;

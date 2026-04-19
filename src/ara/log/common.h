@@ -28,6 +28,12 @@ enum class LogLevel : std::uint8_t
     kVerbose = 0x06U
 };
 
+enum class LogMode : std::uint8_t
+{
+    kConsole = 0U,
+    kFile = 1U
+};
+
 }  // namespace log
 }  // namespace ara
 

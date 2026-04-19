@@ -16,7 +16,7 @@ namespace ara
             std::string ctxDescription)
         {
             Logger _logger =
-                Logger::CreateLogger(ctxId, ctxDescription, mDefaultLogLevel);
+                ara::log::CreateLogger(ctxId, ctxDescription, mDefaultLogLevel);
             mLoggers.push_back(std::move(_logger));
             const Logger &_result = mLoggers.back();
 
@@ -30,7 +30,7 @@ namespace ara
         {
             {
                 Logger _logger =
-                    Logger::CreateLogger(ctxId, ctxDescription, ctxDefLogLevel);
+                    ara::log::CreateLogger(ctxId, ctxDescription, ctxDefLogLevel);
                 mLoggers.push_back(std::move(_logger));
                 const Logger &_result = mLoggers.back();
 
@@ -47,9 +47,7 @@ namespace ara
 
             if (_isLevelEnabled)
             {
-                LogStream _logStreamContex = logger.WithLevel(logLevel);
-                _logStreamContex << logStream;
-                mLogSink->Log(_logStreamContex);
+                mLogSink->Log(logStream);
             }
         }
 
@@ -88,7 +86,7 @@ namespace ara
             std::string appDescription)
         {
             sink::LogSink *_logSink =
-                new sink::FileLogSink(filePath, appId, appDescription);
+                new sink::FileLogSink(appId, appDescription, filePath);
             LoggingFramework *_result =
                 new LoggingFramework(_logSink, logLevel);
 

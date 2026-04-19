@@ -29,6 +29,7 @@ class LogStream final
 public:
     struct State;
 
+    LogStream() noexcept;
     LogStream(const LogStream&) = delete;
     LogStream(LogStream&& other) noexcept;
     LogStream& operator=(const LogStream&) = delete;
@@ -36,6 +37,7 @@ public:
     ~LogStream() noexcept;
 
     void Flush() noexcept;
+    std::string ToString() const;
     LogStream& WithLocation(ara::core::StringView file, int line) noexcept;
 
     template <typename T>
@@ -60,9 +62,19 @@ public:
     LogStream& operator<<(std::int64_t value) noexcept;
     LogStream& operator<<(float value) noexcept;
     LogStream& operator<<(double value) noexcept;
+    LogStream& operator<<(const std::string& value) noexcept;
     LogStream& operator<<(ara::core::StringView value) noexcept;
     LogStream& operator<<(const char* const value) noexcept;
     LogStream& operator<<(ara::core::Span<const ara::core::Byte> data) noexcept;
+    LogStream& operator<<(const std::vector<std::uint8_t>& data) noexcept;
+    LogStream& operator<<(const LogStream& value) noexcept;
+
+    template <typename T>
+    typename std::enable_if<std::is_enum<T>::value, LogStream&>::type operator<<(T value) noexcept
+    {
+        typedef typename std::underlying_type<T>::type UnderlyingType;
+        return (*this) << static_cast<UnderlyingType>(value);
+    }
 
     template <typename T>
     LogStream& operator<<(const Argument<T>& arg) noexcept
