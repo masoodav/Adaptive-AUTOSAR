@@ -1,32 +1,28 @@
 #ifndef CONSOLE_LOG_SINK_H
 #define CONSOLE_LOG_SINK_H
 
-#include "./log_sink.h"
-#include "../logger.h"
-#include <iostream>
+#include "log_sink.h"
+#include <string>
 
-namespace ara
-{
-    namespace log
-    {
-        namespace sink
-        {
-            class ConsoleLogSink : public LogSink
-            {
-            public:
-                /// @brief Constructor
-                /// @param appId Application ID
-                /// @param appDescription Application description
-                ConsoleLogSink(
-                    std::string appId,
-                    std::string appDescription);
+namespace ara::log::sink {
 
-                void Log(const LogStream &logStream) const override;
-                LogStream GetTimestamp() const override;
-                LogStream GetAppstamp() const override;
-            };
-        }
-    }
-}
+class ConsoleLogSink : public LogSink {
+public:
+    explicit ConsoleLogSink(
+        const std::string& appId,
+        const std::string& appDescription
+    );
+    ~ConsoleLogSink() override = default;
 
-#endif
+    void Log(const std::string& message) override;
+    std::string GetTimestamp() const override;
+    std::string GetAppstamp() const override;
+
+private:
+    std::string appId_;
+    std::string appDescription_;
+};
+
+} // namespace ara::log::sink
+
+#endif // CONSOLE_LOG_SINK_H

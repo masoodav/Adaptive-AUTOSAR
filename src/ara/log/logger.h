@@ -1,71 +1,79 @@
-#ifndef ARALOG_LOGGER_H
-#define ARALOG_LOGGER_H
+#ifndef LOGGER_H
+#define LOGGER_H
 
-#include "common.h"
-#include "log_stream.h"
-#include "../core/instance_specifier.h"
+#include <memory>
+#include <string>
+#include <vector>
+#include <mutex>
+#include <functional>
+#include <algorithm>
 
 namespace ara::log {
 
-/// \brief Connection state handler type
-using ConnectionStateHandler = void(*)(ClientState state);
+enum class LogLevel { Fatal, Error, Warn, Info, Debug, Verbose };
 
-/// \brief Main logger class
-class Logger final {
+class LoggerRegistry {
 public:
-    Logger() noexcept = default;
-    ~Logger() noexcept;
+    static LoggerRegistry& Instance() {
+        static LoggerRegistry instance;
+        return instance;
+    }
 
-    // Disable copying
+    void AddLogger(class Logger* logger) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        loggers_.push_back(logger);
+    }
+
+    void RemoveLogger(class Logger* logger) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        loggers_.erase(
+            std::remove(loggers_.begin(), loggers_.end(), logger),
+            loggers_.end()
+        );
+    }
+
+private:
+    std::vector<Logger*> loggers_;
+    std::mutex mutex_;
+    LoggerRegistry() = default;
+    ~LoggerRegistry() = default;
+    LoggerRegistry(const LoggerRegistry&) = delete;
+    LoggerRegistry& operator=(const LoggerRegistry&) = delete;
+};
+
+class Logger {
+public:
+    explicit Logger(const std::string& appId, const std::string& appDescription)
+        : appId_(appId), appDescription_(appDescription) {}
+
+    ~Logger() {
+        LoggerRegistry::Instance().RemoveLogger(this);
+    }
+
     Logger(const Logger&) = delete;
     Logger& operator=(const Logger&) = delete;
 
-    // Allow moving
-    Logger(Logger&& other) noexcept;
-    Logger& operator=(Logger&& other) noexcept;
+    Logger(Logger&&) = default;
+    Logger& operator=(Logger&& other) noexcept {
+        if (this != &other) {
+            appId_ = std::move(other.appId_);
+            appDescription_ = std::move(other.appDescription_);
+        }
+        return *this;
+    }
 
-    /// \brief Check if logging is enabled for given level
-    bool IsEnabled(LogLevel level) const noexcept;
-
-    /// \brief Convenience methods for each log level
-    LogStream LogFatal() noexcept;
-    LogStream LogError() noexcept;
-    LogStream LogWarn() noexcept;
-    LogStream LogInfo() noexcept;
-    LogStream LogDebug() noexcept;
-    LogStream LogVerbose() noexcept;
-
-    /// \brief Create a log stream with specific level
-    LogStream WithLevel(LogLevel level) const noexcept;
-
-    /// \brief Create a logger with default log level
-    static Logger CreateLogger(std::string ctxId, std::string ctxDescription) noexcept;
-
-    /// \brief Create a logger with specific log level
-    static Logger CreateLogger(std::string ctxId, std::string ctxDescription, LogLevel level) noexcept;
-
-    /// \brief Generic logging with explicit level
-    void Log(LogLevel level, ara::core::StringView fmt, ...) noexcept;
-
-    /// \brief Set log level threshold
-    void SetThreshold(LogLevel level) noexcept;
-
-    /// \brief Register connection state handler
-    static void RegisterConnectionStateHandler(ConnectionStateHandler handler) noexcept;
+    template <typename... Args>
+    bool Log(LogLevel level, const std::string& fmt, Args&&... args) {
+        std::string message = std::vformat(fmt, std::make_format_args(args...));
+        // Log the message (implementation depends on your logging backend)
+        return true;
+    }
 
 private:
-    friend class LogStream;
-
-    explicit Logger(ara::core::InstanceSpecifier spec, LogLevel default_level) noexcept;
-
-    LogStream CreateStream(LogLevel level) const noexcept;
-
-    ara::core::InstanceSpecifier m_spec;
-    LogLevel m_threshold = LogLevel::kInfo;
-    bool m_initialized = false;
-    static ConnectionStateHandler g_connection_handler;
+    std::string appId_;
+    std::string appDescription_;
 };
 
 } // namespace ara::log
 
-#endif // ARALOG_LOGGER_H
+#endif // LOGGER_H

@@ -1,37 +1,32 @@
 #ifndef FILE_LOG_SINK_H
 #define FILE_LOG_SINK_H
 
-#include "./log_sink.h"
-#include "../logger.h"
+#include "log_sink.h"
+#include <string>
 #include <fstream>
 
-namespace ara
-{
-    namespace log
-    {
-        namespace sink
-        {
-            class FileLogSink : public LogSink
-            {
-            public:
-                /// @brief Constructor
-                /// @param filePath Path to the log file
-                /// @param appId Application ID
-                /// @param appDescription Application description
-                FileLogSink(
-                    std::string filePath,
-                    std::string appId,
-                    std::string appDescription);
+namespace ara::log::sink {
 
-                void Log(const LogStream &logStream) const override;
-                LogStream GetTimestamp() const override;
-                LogStream GetAppstamp() const override;
+class FileLogSink : public LogSink {
+public:
+    explicit FileLogSink(
+        const std::string& filePath,
+        const std::string& appId,
+        const std::string& appDescription
+    );
+    ~FileLogSink() override;
 
-            private:
-                mutable std::ofstream mLogFile;
-            };
-        }
-    }
-}
+    void Log(const std::string& message) override;
+    std::string GetTimestamp() const override;
+    std::string GetAppstamp() const override;
 
-#endif
+private:
+    std::string filePath_;
+    std::string appId_;
+    std::string appDescription_;
+    std::ofstream fileStream_;
+};
+
+} // namespace ara::log::sink
+
+#endif // FILE_LOG_SINK_H
