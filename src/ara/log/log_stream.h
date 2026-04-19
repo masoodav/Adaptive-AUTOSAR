@@ -1,107 +1,223 @@
-#ifndef LOG_STREAM_H
-#define LOG_STREAM_H
+#ifndef ARA_LOG_LOG_STREAM_H_
+#define ARA_LOG_LOG_STREAM_H_
 
-#include <vector>
+#include <chrono>
+#include <cstdint>
+#include <memory>
+#include <string>
+#include <type_traits>
 #include <utility>
+#include <vector>
+
 #include "../core/error_code.h"
 #include "../core/instance_specifier.h"
-#include "./common.h"
-#include "./argument.h"
+#include "../core/span.h"
+#include "../core/string_view.h"
+#include "common.h"
+#include "log_fwd.h"
+#include "logger.h"
 
 namespace ara
 {
-    namespace log
+namespace log
+{
+
+class Logger;
+
+class LogStream final
+{
+public:
+    struct State;
+
+    LogStream(const LogStream&) = delete;
+    LogStream(LogStream&& other) noexcept;
+    LogStream& operator=(const LogStream&) = delete;
+    LogStream& operator=(LogStream&&) = delete;
+    ~LogStream() noexcept;
+
+    void Flush() noexcept;
+    LogStream& WithLocation(ara::core::StringView file, int line) noexcept;
+
+    template <typename T>
+    LogStream& WithPrivacy(T value) noexcept
     {
-        /// @brief A stream pipeline to combine log entities
-        class LogStream final
-        {
-        private:
-            std::string mLogs;
-            void concat(std::string &&log);
-
-        public:
-            /// @brief Clear the stream
-            void Flush() noexcept;
-
-            /// @brief Arugment insertion operator
-            /// @tparam T Argument playload type
-            /// @param arg An agrgument
-            /// @returns Reference to the current log stream
-            template <typename T>
-            LogStream &operator<<(const Argument<T> &arg)
-            {
-                std::string _argumentString = arg.ToString();
-                concat(std::move(_argumentString));
-
-                return *this;
-            }
-
-            /// @brief LogStream insertion operator
-            /// @param value Another logstream
-            /// @returns Reference to the current log stream
-            LogStream &operator<<(const LogStream &value);
-
-            /// @brief Boolean insertion operator
-            /// @param value A boolean value
-            /// @returns Reference to the current log stream
-            LogStream &operator<<(bool value);
-
-            /// @brief Byte insertion operator
-            /// @param value A byte value
-            /// @returns Reference to the current log stream
-            LogStream &operator<<(uint8_t value);
-
-            /// @brief Unsigned integer insertion operator
-            /// @param value An unsigned integer value
-            /// @returns Reference to the current log stream
-            LogStream &operator<<(uint32_t value);
-
-            /// @brief Float insertion operator
-            /// @param value A float value
-            /// @returns Reference to the current log stream
-            LogStream &operator<<(float value);
-
-            /// @brief String insertion operator
-            /// @param value A string
-            /// @returns Reference to the current log stream
-            LogStream &operator<<(const std::string &value);
-
-            /// @brief C-syle string insertion operator
-            /// @param value Character array
-            /// @returns Reference to the current log stream
-            LogStream &operator<<(const char *value);
-
-            /// @brief LogLeve insertion operator
-            /// @param value Log severity level
-            /// @returns Reference to the current log stream
-            LogStream &operator<<(LogLevel value);
-
-            /// @brief ErrorCode insertion operator
-            /// @param value An error code object
-            /// @returns Reference to the current log stream
-            LogStream &operator<<(const ara::core::ErrorCode &value);
-
-            /// @brief InstanceSpecifier insertion operator
-            /// @param value An instance specifier object
-            /// @returns Reference to the current log stream
-            LogStream &operator<<(const ara::core::InstanceSpecifier &value) noexcept;
-
-            /// @brief Data array insertion operator
-            /// @param value Data byte vector
-            /// @returns Reference to the current log stream
-            LogStream &operator<<(std::vector<std::uint8_t> value);
-
-            /// @brief Log stream at a certian file and a certian line within the file
-            /// @param file File name
-            /// @param line Line number
-            /// @returns Reference to the current log stream
-            LogStream &WithLocation(std::string file, int line);
-
-            /// @brief Convert the current log stream to a standard string
-            /// @returns Serialized log stream string
-            std::string ToString() const noexcept;
-        };
+        static_assert(std::is_integral<T>::value || std::is_enum<T>::value,
+                      "Privacy values must be integral or enum.");
+        SetPrivacy(static_cast<std::uint8_t>(value));
+        return *this;
     }
+
+    LogStream& WithTag(ara::core::StringView tag) noexcept;
+
+    LogStream& operator<<(bool value) noexcept;
+    LogStream& operator<<(std::uint8_t value) noexcept;
+    LogStream& operator<<(std::uint16_t value) noexcept;
+    LogStream& operator<<(std::uint32_t value) noexcept;
+    LogStream& operator<<(std::uint64_t value) noexcept;
+    LogStream& operator<<(std::int8_t value) noexcept;
+    LogStream& operator<<(std::int16_t value) noexcept;
+    LogStream& operator<<(std::int32_t value) noexcept;
+    LogStream& operator<<(std::int64_t value) noexcept;
+    LogStream& operator<<(float value) noexcept;
+    LogStream& operator<<(double value) noexcept;
+    LogStream& operator<<(ara::core::StringView value) noexcept;
+    LogStream& operator<<(const char* const value) noexcept;
+    LogStream& operator<<(ara::core::Span<const ara::core::Byte> data) noexcept;
+
+    template <typename T>
+    LogStream& operator<<(const Argument<T>& arg) noexcept
+    {
+        AppendArgument(arg);
+        return *this;
+    }
+
+private:
+    explicit LogStream(std::shared_ptr<State> state) noexcept;
+
+    void AppendPayload(const std::string& value) noexcept;
+    void AppendArgumentText(const std::string& value, const char* name, const char* unit) noexcept;
+    void SetPrivacy(std::uint8_t privacy) noexcept;
+
+    template <typename T>
+    void AppendArgument(const Argument<T>& arg) noexcept;
+
+    std::shared_ptr<State> state_;
+
+    friend class Logger;
+    friend LogStream& operator<<(LogStream& out, LogLevel value) noexcept;
+    friend LogStream& operator<<(LogStream& out, const ara::core::ErrorCode& ec) noexcept;
+    friend LogStream& operator<<(LogStream& out, const ara::core::InstanceSpecifier& value) noexcept;
+    friend LogStream& operator<<(LogStream& out, const void* value) noexcept;
+    template <typename Rep, typename Period>
+    friend LogStream& operator<<(LogStream& out, const std::chrono::duration<Rep, Period>& value) noexcept;
+};
+
+LogStream& operator<<(LogStream& out, LogLevel value) noexcept;
+LogStream& operator<<(LogStream& out, const ara::core::ErrorCode& ec) noexcept;
+LogStream& operator<<(LogStream& out, const ara::core::InstanceSpecifier& value) noexcept;
+LogStream& operator<<(LogStream& out, const void* value) noexcept;
+
+template <typename Rep, typename Period>
+LogStream& operator<<(LogStream& out, const std::chrono::duration<Rep, Period>& value) noexcept;
+
+}  // namespace log
+}  // namespace ara
+
+
+
+namespace ara
+{
+namespace log
+{
+
+struct LogStream::State
+{
+    State(std::shared_ptr<Logger::State> logger_state, LogLevel severity) noexcept
+        : logger(std::move(logger_state)),
+          level(severity),
+          line(0),
+          has_location(false),
+          has_tag(false),
+          privacy(0U),
+          has_privacy(false)
+    {
+    }
+
+    std::shared_ptr<Logger::State> logger;
+    LogLevel level;
+    std::vector<std::string> arguments;
+    std::string file;
+    int line;
+    bool has_location;
+    std::string tag;
+    bool has_tag;
+    std::uint8_t privacy;
+    bool has_privacy;
+};
+
+namespace internal
+{
+
+std::string FormatValue(bool value, Format format) noexcept;
+std::string FormatValue(std::uint8_t value, Format format) noexcept;
+std::string FormatValue(std::uint16_t value, Format format) noexcept;
+std::string FormatValue(std::uint32_t value, Format format) noexcept;
+std::string FormatValue(std::uint64_t value, Format format) noexcept;
+std::string FormatValue(std::int8_t value, Format format) noexcept;
+std::string FormatValue(std::int16_t value, Format format) noexcept;
+std::string FormatValue(std::int32_t value, Format format) noexcept;
+std::string FormatValue(std::int64_t value, Format format) noexcept;
+std::string FormatValue(float value, Format format) noexcept;
+std::string FormatValue(double value, Format format) noexcept;
+std::string FormatValue(ara::core::StringView value, Format format) noexcept;
+std::string FormatValue(ara::core::Span<const ara::core::Byte> value, Format format) noexcept;
+std::string FormatValue(const char* value, Format format) noexcept;
+
+template <typename T>
+std::string FormatValue(const T& value, Format) noexcept
+{
+    return std::to_string(value);
 }
 
-#endif
+}  // namespace internal
+
+template <typename T>
+void LogStream::AppendArgument(const Argument<T>& arg) noexcept
+{
+    AppendArgumentText(
+        internal::FormatValue(arg.Value(), arg.GetFormat()), arg.Name(), arg.Unit());
+}
+
+template <typename Rep, typename Period>
+LogStream& operator<<(LogStream& out, const std::chrono::duration<Rep, Period>& value) noexcept
+{
+    std::string suffix("s");
+    if (std::ratio_equal<Period, std::nano>::value)
+    {
+        suffix = "ns";
+    }
+    else if (std::ratio_equal<Period, std::micro>::value)
+    {
+        suffix = "us";
+    }
+    else if (std::ratio_equal<Period, std::milli>::value)
+    {
+        suffix = "ms";
+    }
+    else if (std::ratio_equal<Period, std::centi>::value)
+    {
+        suffix = "cs";
+    }
+    else if (std::ratio_equal<Period, std::deci>::value)
+    {
+        suffix = "ds";
+    }
+    else if (std::ratio_equal<Period, std::deca>::value)
+    {
+        suffix = "das";
+    }
+    else if (std::ratio_equal<Period, std::hecto>::value)
+    {
+        suffix = "hs";
+    }
+    else if (std::ratio_equal<Period, std::kilo>::value)
+    {
+        suffix = "ks";
+    }
+    else if (std::ratio_equal<Period, std::mega>::value)
+    {
+        suffix = "Ms";
+    }
+    else if (std::ratio_equal<Period, std::giga>::value)
+    {
+        suffix = "Gs";
+    }
+
+    out.AppendPayload(std::to_string(value.count()) + suffix);
+    return out;
+}
+
+}  // namespace log
+}  // namespace ara
+
+#endif  // ARA_LOG_LOG_STREAM_H_

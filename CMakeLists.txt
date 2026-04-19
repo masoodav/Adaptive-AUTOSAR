@@ -237,11 +237,16 @@ add_library(
   ${source_ara_core_dir}/error_code.cpp
   ${source_ara_core_dir}/instance_specifier.h
   ${source_ara_core_dir}/instance_specifier.cpp
+  ${source_ara_core_dir}/span.h
+  ${source_ara_core_dir}/string_view.h
 )
 
 add_library(
   ara_log
-  ${source_ara_log_dir}/argument.h
+  ${source_ara_log_dir}/common.h
+  ${source_ara_log_dir}/log_fwd.h
+  ${source_ara_log_dir}/backend.h    
+  #${source_ara_log_dir}/argument.h
   ${source_ara_log_dir}/log_stream.h
   ${source_ara_log_dir}/log_stream.cpp
   ${source_ara_log_dir}/logger.h
