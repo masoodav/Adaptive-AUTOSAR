@@ -218,22 +218,11 @@ Logger& CreateLogger(
 class Logger final
 {
 public:
-    struct State
-    {
-        State(std::string ctx, std::string description, LogLevel threshold_value) noexcept
-            : ctx_id(std::move(ctx)),
-              ctx_description(std::move(description)),
-              threshold(threshold_value)
-        {
-        }
-
-        std::string ctx_id;
-        std::string ctx_description;
-        LogLevel threshold;
-    };
-
     Logger() = delete;
     ~Logger();
+
+    // Internal construction path used by the managed logger registry.
+    explicit Logger(std::shared_ptr<internal::LoggerState> state) noexcept;
 
     static Logger& CreateLogger(const ara::core::InstanceSpecifier& is) noexcept
     {
@@ -272,9 +261,7 @@ public:
     LogStream WithLevel(LogLevel logLevel) const noexcept;
 
 private:
-    explicit Logger(std::shared_ptr<State> state) noexcept;
-
-    std::shared_ptr<State> state_;
+    std::shared_ptr<internal::LoggerState> state_;
 
     friend Logger& CreateLogger(const ara::core::InstanceSpecifier& is) noexcept;
     friend Logger& CreateLogger(
@@ -283,6 +270,7 @@ private:
         LogLevel ctxDefLogLevel) noexcept;
     friend Logger& CreateLogger(ara::core::StringView ctxId, ara::core::StringView ctxDescription) noexcept;
     friend class LogStream;
+    friend class internal::Backend;
 };
 
 void RegisterConnectionStateHandler(ConnectionStateHandler callback) noexcept;
@@ -301,7 +289,7 @@ template <typename MsgId, typename... Params>
 void Logger::Log(const MsgId& id, const Params&... args) noexcept
 {
     LogStream stream = WithLevel(LogLevel::kInfo);
-    stream << id;
+    static_cast<void>(stream << id);
     int dummy[] = {0, ((stream << args), 0)...};
     static_cast<void>(dummy);
 }
@@ -315,7 +303,7 @@ struct TupleAppender final
     static void Append(LogStream& stream, const std::tuple<Attrs...>& attrs) noexcept
     {
         TupleAppender<Index - 1U, Attrs...>::Append(stream, attrs);
-        stream << std::get<Index - 1U>(attrs);
+        static_cast<void>(stream << std::get<Index - 1U>(attrs));
     }
 };
 
@@ -332,7 +320,7 @@ void Logger::LogWith(const std::tuple<Attrs...>& attrs, const MsgId& msgId, cons
 {
     LogStream stream = WithLevel(LogLevel::kInfo);
     internal::TupleAppender<sizeof...(Attrs), Attrs...>::Append(stream, attrs);
-    stream << msgId;
+    static_cast<void>(stream << msgId);
     int dummy[] = {0, ((stream << params), 0)...};
     static_cast<void>(dummy);
 }

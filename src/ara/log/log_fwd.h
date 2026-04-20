@@ -9,6 +9,13 @@ namespace ara
 namespace log
 {
 
+namespace internal
+{
+struct LoggerState;
+struct LogStreamState;
+class Backend;
+}
+
 enum class ClientState : std::int8_t;
 enum class LogLevel : std::uint8_t;
 enum class LogMode : std::uint8_t;

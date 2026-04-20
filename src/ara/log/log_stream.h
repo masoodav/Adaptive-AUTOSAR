@@ -24,11 +24,27 @@ namespace log
 
 class Logger;
 
+namespace internal
+{
+std::string FormatValue(bool value, Format format) noexcept;
+std::string FormatValue(std::uint8_t value, Format format) noexcept;
+std::string FormatValue(std::uint16_t value, Format format) noexcept;
+std::string FormatValue(std::uint32_t value, Format format) noexcept;
+std::string FormatValue(std::uint64_t value, Format format) noexcept;
+std::string FormatValue(std::int8_t value, Format format) noexcept;
+std::string FormatValue(std::int16_t value, Format format) noexcept;
+std::string FormatValue(std::int32_t value, Format format) noexcept;
+std::string FormatValue(std::int64_t value, Format format) noexcept;
+std::string FormatValue(float value, Format format) noexcept;
+std::string FormatValue(double value, Format format) noexcept;
+std::string FormatValue(ara::core::StringView value, Format format) noexcept;
+std::string FormatValue(ara::core::Span<const ara::core::Byte> value, Format format) noexcept;
+std::string FormatValue(const char* value, Format format) noexcept;
+}
+
 class LogStream final
 {
 public:
-    struct State;
-
     LogStream() noexcept;
     LogStream(const LogStream&) = delete;
     LogStream(LogStream&& other) noexcept;
@@ -79,21 +95,19 @@ public:
     template <typename T>
     LogStream& operator<<(const Argument<T>& arg) noexcept
     {
-        AppendArgument(arg);
+        AppendArgumentText(
+            internal::FormatValue(arg.Value(), arg.GetFormat()), arg.Name(), arg.Unit());
         return *this;
     }
 
 private:
-    explicit LogStream(std::shared_ptr<State> state) noexcept;
+    explicit LogStream(std::shared_ptr<internal::LogStreamState> state) noexcept;
 
     void AppendPayload(const std::string& value) noexcept;
     void AppendArgumentText(const std::string& value, const char* name, const char* unit) noexcept;
     void SetPrivacy(std::uint8_t privacy) noexcept;
 
-    template <typename T>
-    void AppendArgument(const Argument<T>& arg) noexcept;
-
-    std::shared_ptr<State> state_;
+    std::shared_ptr<internal::LogStreamState> state_;
 
     friend class Logger;
     friend LogStream& operator<<(LogStream& out, LogLevel value) noexcept;
@@ -121,49 +135,8 @@ namespace ara
 {
 namespace log
 {
-
-struct LogStream::State
-{
-    State(std::shared_ptr<Logger::State> logger_state, LogLevel severity) noexcept
-        : logger(std::move(logger_state)),
-          level(severity),
-          line(0),
-          has_location(false),
-          has_tag(false),
-          privacy(0U),
-          has_privacy(false)
-    {
-    }
-
-    std::shared_ptr<Logger::State> logger;
-    LogLevel level;
-    std::vector<std::string> arguments;
-    std::string file;
-    int line;
-    bool has_location;
-    std::string tag;
-    bool has_tag;
-    std::uint8_t privacy;
-    bool has_privacy;
-};
-
 namespace internal
 {
-
-std::string FormatValue(bool value, Format format) noexcept;
-std::string FormatValue(std::uint8_t value, Format format) noexcept;
-std::string FormatValue(std::uint16_t value, Format format) noexcept;
-std::string FormatValue(std::uint32_t value, Format format) noexcept;
-std::string FormatValue(std::uint64_t value, Format format) noexcept;
-std::string FormatValue(std::int8_t value, Format format) noexcept;
-std::string FormatValue(std::int16_t value, Format format) noexcept;
-std::string FormatValue(std::int32_t value, Format format) noexcept;
-std::string FormatValue(std::int64_t value, Format format) noexcept;
-std::string FormatValue(float value, Format format) noexcept;
-std::string FormatValue(double value, Format format) noexcept;
-std::string FormatValue(ara::core::StringView value, Format format) noexcept;
-std::string FormatValue(ara::core::Span<const ara::core::Byte> value, Format format) noexcept;
-std::string FormatValue(const char* value, Format format) noexcept;
 
 template <typename T>
 std::string FormatValue(const T& value, Format) noexcept
@@ -172,13 +145,6 @@ std::string FormatValue(const T& value, Format) noexcept
 }
 
 }  // namespace internal
-
-template <typename T>
-void LogStream::AppendArgument(const Argument<T>& arg) noexcept
-{
-    AppendArgumentText(
-        internal::FormatValue(arg.Value(), arg.GetFormat()), arg.Name(), arg.Unit());
-}
 
 template <typename Rep, typename Period>
 LogStream& operator<<(LogStream& out, const std::chrono::duration<Rep, Period>& value) noexcept

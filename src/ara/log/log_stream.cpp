@@ -38,127 +38,159 @@ std::string LevelToText(LogLevel value) noexcept
     }
 }
 
-void SubmitSnapshot(const std::shared_ptr<LogStream::State>& state) noexcept
+void SubmitSnapshot(const std::shared_ptr<internal::LogStreamState>& state) noexcept
 {
-    if (!state || !state->logger)
+    if ((!state) || (!state->logger))
     {
         return;
     }
 
-    internal::MessageRecord record;
-    record.ctx_id = state->logger->ctx_id;
-    record.ctx_description = state->logger->ctx_description;
-    record.level = state->level;
-    for (const std::string& argument : state->arguments)
+    try
     {
-        record.arguments.push_back(internal::RenderedArgument{argument});
+        internal::MessageRecord record;
+        record.ctx_id = state->logger->ctx_id;
+        record.ctx_description = state->logger->ctx_description;
+        record.level = state->level;
+        for (const std::string& argument : state->arguments)
+        {
+            record.arguments.push_back(internal::RenderedArgument{argument});
+        }
+        record.file = state->file;
+        record.line = state->line;
+        record.has_location = state->has_location;
+        record.tag = state->tag;
+        record.has_tag = state->has_tag;
+        record.privacy = state->privacy;
+        record.has_privacy = state->has_privacy;
+        internal::Backend::Instance().Submit(record);
     }
-    record.file = state->file;
-    record.line = state->line;
-    record.has_location = state->has_location;
-    record.tag = state->tag;
-    record.has_tag = state->has_tag;
-    record.privacy = state->privacy;
-    record.has_privacy = state->has_privacy;
-    internal::Backend::Instance().Submit(record);
+    catch (...)
+    {
+    }
 }
 
 template <typename IntegerType>
 std::string FormatIntegral(IntegerType value, Format format, bool signed_value) noexcept
 {
-    std::ostringstream stream;
-    const std::uint16_t precision = (format.precision == 0U) ? 1U : format.precision;
+    try
+    {
+        std::ostringstream stream;
+        const std::uint16_t precision = (format.precision == 0U) ? 1U : format.precision;
 
-    switch (format.fmt)
-    {
-    case Fmt::kBin:
-    {
-        std::bitset<64U> bits(static_cast<typename std::make_unsigned<IntegerType>::type>(value));
-        std::string text = bits.to_string();
-        std::size_t position = text.find('1');
-        if (position == std::string::npos)
+        switch (format.fmt)
         {
-            text = "0";
+        case Fmt::kBin:
+        {
+            std::bitset<64U> bits(static_cast<typename std::make_unsigned<IntegerType>::type>(value));
+            std::string text = bits.to_string();
+            std::size_t position = text.find('1');
+            if (position == std::string::npos)
+            {
+                text = "0";
+            }
+            else
+            {
+                text = text.substr(position);
+            }
+            if (text.size() < precision)
+            {
+                text.insert(0U, precision - text.size(), '0');
+            }
+            return text;
+        }
+        case Fmt::kHex:
+            static_cast<void>(stream << std::hex << std::nouppercase << std::setfill('0') << std::setw(precision));
+            break;
+        case Fmt::kOct:
+            static_cast<void>(stream << std::oct << std::setfill('0') << std::setw(precision));
+            break;
+        case Fmt::kDec:
+        case Fmt::kDefault:
+        default:
+            static_cast<void>(stream << std::dec << std::setfill('0') << std::setw(precision));
+            break;
+        }
+
+        if (signed_value)
+        {
+            static_cast<void>(stream << static_cast<long long>(value));
         }
         else
         {
-            text = text.substr(position);
+            static_cast<void>(stream << static_cast<unsigned long long>(value));
         }
-        if (text.size() < precision)
-        {
-            text.insert(0U, precision - text.size(), '0');
-        }
-        return text;
+        return stream.str();
     }
-    case Fmt::kHex:
-        stream << std::hex << std::nouppercase << std::setfill('0') << std::setw(precision);
-        break;
-    case Fmt::kOct:
-        stream << std::oct << std::setfill('0') << std::setw(precision);
-        break;
-    case Fmt::kDec:
-    case Fmt::kDefault:
-    default:
-        stream << std::dec << std::setfill('0') << std::setw(precision);
-        break;
-    }
-
-    if (signed_value)
+    catch (...)
     {
-        stream << static_cast<long long>(value);
+        return std::string();
     }
-    else
-    {
-        stream << static_cast<unsigned long long>(value);
-    }
-    return stream.str();
 }
 
 std::string FormatFloating(double value, Format format) noexcept
 {
-    std::ostringstream stream;
-    switch (format.fmt)
+    try
     {
-    case Fmt::kDecFloat:
-        stream << std::fixed << std::setprecision(format.precision);
-        break;
-    case Fmt::kEngFloat:
-        stream << std::scientific << std::setprecision(format.precision);
-        break;
-    case Fmt::kHexFloat:
-        stream << std::hexfloat;
-        break;
-    case Fmt::kAutoFloat:
-        stream << std::setprecision(format.precision);
-        break;
-    case Fmt::kDefault:
-    default:
-        break;
+        std::ostringstream stream;
+        switch (format.fmt)
+        {
+        case Fmt::kDecFloat:
+            static_cast<void>(stream << std::fixed << std::setprecision(format.precision));
+            break;
+        case Fmt::kEngFloat:
+            static_cast<void>(stream << std::scientific << std::setprecision(format.precision));
+            break;
+        case Fmt::kHexFloat:
+            static_cast<void>(stream << std::hexfloat);
+            break;
+        case Fmt::kAutoFloat:
+            static_cast<void>(stream << std::setprecision(format.precision));
+            break;
+        case Fmt::kDefault:
+        default:
+            break;
+        }
+        static_cast<void>(stream << value);
+        return stream.str();
     }
-    stream << value;
-    return stream.str();
+    catch (...)
+    {
+        return std::string();
+    }
 }
 
 std::string FormatBytes(ara::core::Span<const ara::core::Byte> value) noexcept
 {
-    std::ostringstream stream;
-    for (std::size_t index = 0U; index < value.size(); ++index)
+    try
     {
-        if (index != 0U)
+        std::ostringstream stream;
+        const std::size_t byte_count = value.size();
+        for (std::size_t index = 0U; index < byte_count; ++index)
         {
-            stream << '\'';
+            if (index != 0U)
+            {
+                static_cast<void>(stream << '\'');
+            }
+            static_cast<void>(stream << std::hex << std::nouppercase << std::setfill('0') << std::setw(2)
+                                     << static_cast<unsigned int>(value[index]));
         }
-        stream << std::hex << std::nouppercase << std::setfill('0') << std::setw(2)
-               << static_cast<unsigned int>(value[index]);
+        return stream.str();
     }
-    return stream.str();
+    catch (...)
+    {
+        return std::string();
+    }
 }
 
 }  // namespace
 
-LogStream::LogStream(std::shared_ptr<State> state) noexcept : state_(std::move(state)) {}
+LogStream::LogStream(std::shared_ptr<internal::LogStreamState> state) noexcept : state_(std::move(state)) {}
 
-LogStream::LogStream() noexcept : state_(std::shared_ptr<State>(new State(std::shared_ptr<Logger::State>(), LogLevel::kOff))) {}
+LogStream::LogStream() noexcept
+    : state_(std::make_shared<internal::LogStreamState>(
+          std::shared_ptr<internal::LoggerState>(), LogLevel::kOff))
+{
+}
 
 LogStream::LogStream(LogStream&& other) noexcept : state_(std::move(other.state_)) {}
 
@@ -202,7 +234,7 @@ std::string LogStream::ToString() const
     {
         if (!state_->logger->ctx_id.empty())
         {
-            stream << state_->logger->ctx_id;
+            static_cast<void>(stream << state_->logger->ctx_id);
             needs_separator = true;
         }
 
@@ -210,9 +242,9 @@ std::string LogStream::ToString() const
         {
             if (needs_separator)
             {
-                stream << ' ';
+                static_cast<void>(stream << ' ');
             }
-            stream << state_->logger->ctx_description;
+            static_cast<void>(stream << state_->logger->ctx_description);
             needs_separator = true;
         }
     }
@@ -221,9 +253,9 @@ std::string LogStream::ToString() const
     {
         if (needs_separator)
         {
-            stream << ' ';
+            static_cast<void>(stream << ' ');
         }
-        stream << argument;
+        static_cast<void>(stream << argument);
         needs_separator = true;
     }
 
@@ -231,9 +263,9 @@ std::string LogStream::ToString() const
     {
         if (needs_separator)
         {
-            stream << ' ';
+            static_cast<void>(stream << ' ');
         }
-        stream << "tag:" << state_->tag;
+        static_cast<void>(stream << "tag:" << state_->tag);
         needs_separator = true;
     }
 
@@ -241,9 +273,9 @@ std::string LogStream::ToString() const
     {
         if (needs_separator)
         {
-            stream << ' ';
+            static_cast<void>(stream << ' ');
         }
-        stream << state_->file << ':' << state_->line;
+        static_cast<void>(stream << state_->file << ':' << state_->line);
         needs_separator = true;
     }
 
@@ -251,9 +283,9 @@ std::string LogStream::ToString() const
     {
         if (needs_separator)
         {
-            stream << ' ';
+            static_cast<void>(stream << ' ');
         }
-        stream << "privacy:" << static_cast<unsigned int>(state_->privacy);
+        static_cast<void>(stream << "privacy:" << static_cast<unsigned int>(state_->privacy));
     }
 
     return stream.str();
@@ -261,21 +293,33 @@ std::string LogStream::ToString() const
 
 LogStream& LogStream::WithLocation(ara::core::StringView file, int line) noexcept
 {
-    if (state_)
+    try
     {
-        state_->file = file.ToString();
-        state_->line = line;
-        state_->has_location = true;
+        if (state_)
+        {
+            state_->file = file.ToString();
+            state_->line = line;
+            state_->has_location = true;
+        }
+    }
+    catch (...)
+    {
     }
     return *this;
 }
 
 LogStream& LogStream::WithTag(ara::core::StringView tag) noexcept
 {
-    if (state_)
+    try
     {
-        state_->tag = tag.ToString();
-        state_->has_tag = true;
+        if (state_)
+        {
+            state_->tag = tag.ToString();
+            state_->has_tag = true;
+        }
+    }
+    catch (...)
+    {
     }
     return *this;
 }
@@ -373,10 +417,11 @@ LogStream& LogStream::operator<<(ara::core::Span<const ara::core::Byte> data) no
 LogStream& LogStream::operator<<(const std::vector<std::uint8_t>& data) noexcept
 {
     std::ostringstream stream;
-    for (std::size_t index = 0U; index < data.size(); ++index)
+    const std::vector<std::uint8_t>::size_type data_size = data.size();
+    for (std::vector<std::uint8_t>::size_type index = 0U; index < data_size; ++index)
     {
-        stream << std::hex << std::nouppercase << std::setfill('0') << std::setw(2)
-               << static_cast<unsigned int>(data[index]);
+        static_cast<void>(stream << std::hex << std::nouppercase << std::setfill('0') << std::setw(2)
+                                 << static_cast<unsigned int>(data[index]));
     }
     AppendPayload(stream.str());
     return *this;
@@ -400,20 +445,26 @@ void LogStream::AppendArgumentText(const std::string& value, const char* name, c
         return;
     }
 
-    std::string text;
-    if (name != nullptr)
+    try
     {
-        text += name;
-        text += ':';
-    }
-    text += value;
-    if (unit != nullptr)
-    {
-        text += ':';
-        text += unit;
-    }
+        std::string text;
+        if (name != nullptr)
+        {
+            text.append(name);
+            text.push_back(':');
+        }
+        text.append(value);
+        if (unit != nullptr)
+        {
+            text.push_back(':');
+            text.append(unit);
+        }
 
-    state_->arguments.push_back(text);
+        state_->arguments.push_back(text);
+    }
+    catch (...)
+    {
+    }
 }
 
 void LogStream::SetPrivacy(std::uint8_t privacy) noexcept
@@ -434,7 +485,7 @@ LogStream& operator<<(LogStream& out, LogLevel value) noexcept
 LogStream& operator<<(LogStream& out, const ara::core::ErrorCode& ec) noexcept
 {
     std::ostringstream stream;
-    stream << ec.Domain().Name() << ':' << ec.Value();
+    static_cast<void>(stream << ec.Domain().Name() << ':' << ec.Value());
     out.AppendPayload(stream.str());
     return out;
 }
@@ -448,7 +499,7 @@ LogStream& operator<<(LogStream& out, const ara::core::InstanceSpecifier& value)
 LogStream& operator<<(LogStream& out, const void* value) noexcept
 {
     std::ostringstream stream;
-    stream << value;
+    static_cast<void>(stream << value);
     out.AppendPayload(stream.str());
     return out;
 }

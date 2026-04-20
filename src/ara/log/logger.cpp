@@ -11,7 +11,12 @@ namespace ara
 namespace log
 {
 
-Logger::Logger(std::shared_ptr<State> state) noexcept : state_(std::move(state)) {}
+namespace internal
+{
+Backend g_backend_instance;
+}
+
+Logger::Logger(std::shared_ptr<internal::LoggerState> state) noexcept : state_(std::move(state)) {}
 
 Logger::~Logger() {}
 
@@ -57,42 +62,39 @@ void Logger::SetThreshold(LogLevel threshold) noexcept
 
 LogStream Logger::WithLevel(LogLevel logLevel) const noexcept
 {
-    return LogStream(std::shared_ptr<LogStream::State>(new LogStream::State(state_, logLevel)));
+    try
+    {
+        return LogStream(std::make_shared<internal::LogStreamState>(state_, logLevel));
+    }
+    catch (...)
+    {
+        return LogStream();
+    }
 }
 
 Logger& CreateLogger(const ara::core::InstanceSpecifier& is) noexcept
 {
-    static std::vector<std::unique_ptr<Logger> > owned_loggers;
-    std::shared_ptr<Logger::State> state = internal::Backend::Instance().CreateLogger(is.ToString());
-
-    for (const std::unique_ptr<Logger>& logger : owned_loggers)
+    try
     {
-        if (logger->state_ == state)
-        {
-            return *logger;
-        }
+        return internal::Backend::Instance().CreateLogger(is.ToString());
     }
-
-    owned_loggers.emplace_back(new Logger(state));
-    return *owned_loggers.back();
+    catch (...)
+    {
+        return internal::Backend::Instance().CreateLogger("LOGF", "Fallback logger", false, LogLevel::kOff);
+    }
 }
 
 Logger& CreateLogger(ara::core::StringView ctxId, ara::core::StringView ctxDescription) noexcept
 {
-    static std::vector<std::unique_ptr<Logger> > owned_loggers;
-    std::shared_ptr<Logger::State> state =
-        internal::Backend::Instance().CreateLogger(ctxId.ToString(), ctxDescription.ToString(), true, LogLevel::kWarn);
-
-    for (const std::unique_ptr<Logger>& logger : owned_loggers)
+    try
     {
-        if (logger->state_ == state)
-        {
-            return *logger;
-        }
+        return internal::Backend::Instance().CreateLogger(
+            ctxId.ToString(), ctxDescription.ToString(), true, LogLevel::kWarn);
     }
-
-    owned_loggers.emplace_back(new Logger(state));
-    return *owned_loggers.back();
+    catch (...)
+    {
+        return internal::Backend::Instance().CreateLogger("LOGF", "Fallback logger", false, LogLevel::kOff);
+    }
 }
 
 Logger& CreateLogger(
@@ -100,20 +102,15 @@ Logger& CreateLogger(
     ara::core::StringView ctxDescription,
     LogLevel ctxDefLogLevel) noexcept
 {
-    static std::vector<std::unique_ptr<Logger> > owned_loggers;
-    std::shared_ptr<Logger::State> state = internal::Backend::Instance().CreateLogger(
-        ctxId.ToString(), ctxDescription.ToString(), false, ctxDefLogLevel);
-
-    for (const std::unique_ptr<Logger>& logger : owned_loggers)
+    try
     {
-        if (logger->state_ == state)
-        {
-            return *logger;
-        }
+        return internal::Backend::Instance().CreateLogger(
+            ctxId.ToString(), ctxDescription.ToString(), false, ctxDefLogLevel);
     }
-
-    owned_loggers.emplace_back(new Logger(state));
-    return *owned_loggers.back();
+    catch (...)
+    {
+        return internal::Backend::Instance().CreateLogger("LOGF", "Fallback logger", false, LogLevel::kOff);
+    }
 }
 
 void RegisterConnectionStateHandler(ConnectionStateHandler callback) noexcept
@@ -126,8 +123,7 @@ namespace internal
 
 Backend& Backend::Instance() noexcept
 {
-    static Backend backend;
-    return backend;
+    return g_backend_instance;
 }
 
 Backend::Backend() noexcept
@@ -137,37 +133,60 @@ Backend::Backend() noexcept
 {
 }
 
-std::shared_ptr<Logger::State> Backend::CreateLogger(
+Logger& Backend::CreateLogger(
     const std::string& ctx_id,
     const std::string& description,
     bool use_manifest_threshold,
     LogLevel explicit_threshold) noexcept
 {
-    std::lock_guard<std::mutex> lock(mutex_);
-    std::map<std::string, std::shared_ptr<Logger::State> >::iterator it = loggers_.find(ctx_id);
-    if (it != loggers_.end())
+    try
     {
-        return it->second;
-    }
+        std::lock_guard<std::mutex> lock(mutex_);
+        std::map<std::string, Logger>::iterator logger_it = loggers_.find(ctx_id);
+        if (logger_it != loggers_.end())
+        {
+            return logger_it->second;
+        }
 
-    std::shared_ptr<Logger::State> state(
-        new Logger::State(ctx_id, description, ResolveThreshold(use_manifest_threshold, explicit_threshold)));
-    loggers_.insert(std::make_pair(ctx_id, state));
-    return state;
+        std::shared_ptr<LoggerState> state = std::make_shared<LoggerState>(
+            ctx_id, description, ResolveThreshold(use_manifest_threshold, explicit_threshold));
+        logger_states_.insert(std::make_pair(ctx_id, state));
+        std::pair<std::map<std::string, Logger>::iterator, bool> insert_result =
+            loggers_.emplace(std::piecewise_construct,
+                             std::forward_as_tuple(ctx_id),
+                             std::forward_as_tuple(state));
+        return insert_result.first->second;
+    }
+    catch (...)
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        std::map<std::string, Logger>::iterator fallback_it = loggers_.find("LOGF");
+        if (fallback_it == loggers_.end())
+        {
+            std::shared_ptr<LoggerState> fallback_state =
+                std::make_shared<LoggerState>("LOGF", "Fallback logger", LogLevel::kOff);
+            logger_states_.insert(std::make_pair("LOGF", fallback_state));
+            fallback_it = loggers_.emplace(std::piecewise_construct,
+                                           std::forward_as_tuple("LOGF"),
+                                           std::forward_as_tuple(fallback_state))
+                              .first;
+        }
+        return fallback_it->second;
+    }
 }
 
-std::shared_ptr<Logger::State> Backend::CreateLogger(const std::string& instance_specifier) noexcept
+Logger& Backend::CreateLogger(const std::string& instance_specifier) noexcept
 {
     return CreateLogger(instance_specifier, instance_specifier, true, LogLevel::kWarn);
 }
 
-bool Backend::IsEnabled(const std::shared_ptr<Logger::State>& state, LogLevel level) const noexcept
+bool Backend::IsEnabled(const std::shared_ptr<LoggerState>& state, LogLevel level) const noexcept
 {
     std::lock_guard<std::mutex> lock(mutex_);
     return IsEnabledForThreshold(state->threshold, level);
 }
 
-void Backend::SetThreshold(const std::shared_ptr<Logger::State>& state, LogLevel level) noexcept
+void Backend::SetThreshold(const std::shared_ptr<LoggerState>& state, LogLevel level) noexcept
 {
     std::lock_guard<std::mutex> lock(mutex_);
     state->threshold = level;
@@ -176,13 +195,13 @@ void Backend::SetThreshold(const std::shared_ptr<Logger::State>& state, LogLevel
 void Backend::Submit(MessageRecord message) noexcept
 {
     std::lock_guard<std::mutex> lock(mutex_);
-    const std::map<std::string, std::shared_ptr<Logger::State> >::iterator it = loggers_.find(message.ctx_id);
-    if (it == loggers_.end())
+    const std::map<std::string, std::shared_ptr<LoggerState> >::iterator state_it = logger_states_.find(message.ctx_id);
+    if (state_it == logger_states_.end())
     {
         return;
     }
 
-    if (!IsEnabledForThreshold(it->second->threshold, message.level))
+    if (!IsEnabledForThreshold(state_it->second->threshold, message.level))
     {
         return;
     }
@@ -253,6 +272,7 @@ void Backend::ResetForTesting() noexcept
 {
     std::lock_guard<std::mutex> lock(mutex_);
     loggers_.clear();
+    logger_states_.clear();
     queued_messages_.clear();
     console_lines_.clear();
     manifest_thresholds_.clear();
@@ -271,25 +291,26 @@ std::vector<std::string> Backend::SnapshotConsoleLines() const
 std::string Backend::MakeConsoleLine(const MessageRecord& message)
 {
     std::ostringstream stream;
-    stream << '[' << message.ctx_id << "] ";
-    stream << static_cast<unsigned int>(message.level);
+    static_cast<void>(stream << '[' << message.ctx_id << "] ");
+    static_cast<void>(stream << static_cast<unsigned int>(message.level));
 
-    for (std::size_t index = 0U; index < message.arguments.size(); ++index)
+    const std::vector<RenderedArgument>::size_type argument_count = message.arguments.size();
+    for (std::vector<RenderedArgument>::size_type index = 0U; index < argument_count; ++index)
     {
-        stream << ' ' << message.arguments[index].text;
+        static_cast<void>(stream << ' ' << message.arguments[index].text);
     }
 
     if (message.has_tag)
     {
-        stream << " tag:" << message.tag;
+        static_cast<void>(stream << " tag:" << message.tag);
     }
     if (message.has_location)
     {
-        stream << " loc:" << message.file << ':' << message.line;
+        static_cast<void>(stream << " loc:" << message.file << ':' << message.line);
     }
     if (message.has_privacy)
     {
-        stream << " privacy:" << static_cast<unsigned int>(message.privacy);
+        static_cast<void>(stream << " privacy:" << static_cast<unsigned int>(message.privacy));
     }
 
     return stream.str();

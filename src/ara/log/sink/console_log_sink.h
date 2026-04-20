@@ -17,8 +17,8 @@ namespace ara
                 /// @param appId Application ID
                 /// @param appDescription Application description
                 ConsoleLogSink(
-                    std::string appId,
-                    std::string appDescription);
+                    const std::string& appId,
+                    const std::string& appDescription);
 
                 ConsoleLogSink() = delete;
                 void Log(const LogStream &logStream) const override;

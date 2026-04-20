@@ -7,19 +7,19 @@ namespace ara
         namespace sink
         {
             ConsoleLogSink::ConsoleLogSink(
-                std::string appId,
-                std::string appDescription) : LogSink(appId, appDescription)
+                const std::string& appId,
+                const std::string& appDescription) : LogSink(appId, appDescription)
             {
             }
 
             void ConsoleLogSink::Log(const LogStream &logStream) const
             {
-                LogStream _timestamp = GetTimestamp();
-                LogStream _appstamp = GetAppstamp();
-                _timestamp << cWhitespace << _appstamp << cWhitespace << logStream;
-                std::string _logString = _timestamp.ToString();
+                LogStream timestamp = GetTimestamp();
+                LogStream appstamp = GetAppstamp();
+                static_cast<void>(timestamp << cWhitespace << appstamp << cWhitespace << logStream);
+                std::string logString = timestamp.ToString();
 
-                std::cout << _logString << std::endl;
+                static_cast<void>(std::cout << logString << std::endl);
             }
         }
     }
