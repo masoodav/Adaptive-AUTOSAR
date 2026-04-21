@@ -18,8 +18,9 @@ namespace
 
 Backend& GetBackendInstance() noexcept
 {
-    static Backend backend_instance;
-    return backend_instance;
+    // FIX: replace static object with heap allocation
+    static Backend* backend_instance = new Backend();
+    return *backend_instance;
 }
 
 }  // namespace

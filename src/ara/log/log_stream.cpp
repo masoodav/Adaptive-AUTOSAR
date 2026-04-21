@@ -471,7 +471,6 @@ void LogStream::AppendPayload(const std::string& value) noexcept
 {
     AppendArgumentText(value, nullptr, nullptr);
 }
-
 void LogStream::AppendArgumentText(const std::string& value, const char* name, const char* unit) noexcept
 {
     if (!state_)
@@ -482,12 +481,15 @@ void LogStream::AppendArgumentText(const std::string& value, const char* name, c
     try
     {
         std::string text;
+
         if (name != nullptr)
         {
             static_cast<void>(text.append(name));
             text.push_back(':');
         }
+
         static_cast<void>(text.append(value));
+
         if (unit != nullptr)
         {
             text.push_back(':');
@@ -498,6 +500,7 @@ void LogStream::AppendArgumentText(const std::string& value, const char* name, c
     }
     catch (...)
     {
+        // swallow exception (MISRA)
     }
 }
 

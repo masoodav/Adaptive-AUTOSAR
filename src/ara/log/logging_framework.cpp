@@ -9,14 +9,17 @@ namespace log
 
 namespace
 {
+
 std::deque<LoggingFramework>& FrameworkStorage()
 {
-    static std::deque<LoggingFramework> frameworks;
-    return frameworks;
-}
+    // FIX: avoid static object (MISRA 6-7-1)
+    static std::deque<LoggingFramework>* frameworks =
+        new std::deque<LoggingFramework>();
+    return *frameworks;
 }
 
-// Constructor
+} // namespace
+
 LoggingFramework::LoggingFramework(
     const std::shared_ptr<sink::LogSink>& logSink,
     LogLevel logLevel)
@@ -25,7 +28,6 @@ LoggingFramework::LoggingFramework(
 {
 }
 
-// Create logger (default level)
 const Logger& LoggingFramework::CreateLogger(
     std::string ctxId,
     std::string ctxDescription)
@@ -37,7 +39,6 @@ const Logger& LoggingFramework::CreateLogger(
     return mLoggers.back();
 }
 
-// Create logger (explicit level)
 const Logger& LoggingFramework::CreateLogger(
     std::string ctxId,
     std::string ctxDescription,
@@ -50,7 +51,6 @@ const Logger& LoggingFramework::CreateLogger(
     return mLoggers.back();
 }
 
-// Log dispatch
 void LoggingFramework::Log(
     const Logger& logger,
     LogLevel logLevel,
@@ -58,11 +58,17 @@ void LoggingFramework::Log(
 {
     if (logger.IsEnabled(logLevel))
     {
-        mLogSink->Log(logStream);
+        try
+        {
+            mLogSink->Log(logStream);
+        }
+        catch (...)
+        {
+            // MISRA: no exception propagation
+        }
     }
 }
 
-// Factory (console)
 LoggingFramework* LoggingFramework::Create(
     std::string appId,
     LogMode logMode,
@@ -80,7 +86,6 @@ LoggingFramework* LoggingFramework::Create(
         std::shared_ptr<sink::LogSink> logSink =
             std::make_shared<sink::ConsoleLogSink>(appId, appDescription);
 
-        // ✅ FIX: avoid emplace_back (private ctor issue)
         FrameworkStorage().push_back(LoggingFramework(logSink, logLevel));
         return &FrameworkStorage().back();
     }
@@ -88,7 +93,6 @@ LoggingFramework* LoggingFramework::Create(
     throw std::invalid_argument("Unsupported log mode.");
 }
 
-// Factory (file)
 LoggingFramework* LoggingFramework::Create(
     std::string appId,
     std::string filePath,
@@ -98,12 +102,10 @@ LoggingFramework* LoggingFramework::Create(
     std::shared_ptr<sink::LogSink> logSink =
         std::make_shared<sink::FileLogSink>(appId, appDescription, filePath);
 
-    // ✅ FIX: avoid emplace_back (private ctor issue)
     FrameworkStorage().push_back(LoggingFramework(logSink, logLevel));
     return &FrameworkStorage().back();
 }
 
-// Destructor
 LoggingFramework::~LoggingFramework() noexcept = default;
 
 } // namespace log
