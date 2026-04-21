@@ -108,9 +108,12 @@ void SubmitSnapshot(const std::shared_ptr<internal::LogStreamState>& state) noex
         static_cast<void>(record.ctx_id = state->logger->ctx_id);
         static_cast<void>(record.ctx_description = state->logger->ctx_description);
         static_cast<void>(record.level = state->level);
-        for (const std::string& argument : state->arguments)
+        std::vector<std::string>::size_type argument_index = 0U;
+        const std::vector<std::string>::size_type argument_count = state->arguments.size();
+        while (argument_index < argument_count)
         {
-            record.arguments.push_back(internal::RenderedArgument{argument});
+            record.arguments.push_back(internal::RenderedArgument{state->arguments[argument_index]});
+            ++argument_index;
         }
         static_cast<void>(record.file = state->file);
         static_cast<void>(record.line = state->line);
@@ -127,7 +130,7 @@ void SubmitSnapshot(const std::shared_ptr<internal::LogStreamState>& state) noex
 }
 
 template <typename IntegerType>
-std::string FormatIntegral(IntegerType value, Format format, bool signed_value) noexcept
+std::string FormatIntegral(IntegerType value, Format format, bool signed_value)
 {
     try
     {
@@ -167,7 +170,7 @@ std::string FormatIntegral(IntegerType value, Format format, bool signed_value) 
     }
 }
 
-std::string FormatFloating(double value, Format format) noexcept
+std::string FormatFloating(double value, Format format)
 {
     try
     {
@@ -182,7 +185,7 @@ std::string FormatFloating(double value, Format format) noexcept
     }
 }
 
-std::string FormatBytes(ara::core::Span<const ara::core::Byte> value) noexcept
+std::string FormatBytes(ara::core::Span<const ara::core::Byte> value)
 {
     try
     {
@@ -285,14 +288,17 @@ std::string LogStream::ToString() const
         }
     }
 
-    for (const std::string& argument : state_->arguments)
+    std::vector<std::string>::size_type argument_index = 0U;
+    const std::vector<std::string>::size_type argument_count = state_->arguments.size();
+    while (argument_index < argument_count)
     {
         if (needs_separator)
         {
             static_cast<void>(stream << ' ');
         }
-        static_cast<void>(stream << argument);
+        static_cast<void>(stream << state_->arguments[argument_index]);
         needs_separator = true;
+        ++argument_index;
     }
 
     if (state_->has_tag)
@@ -453,9 +459,12 @@ LogStream& LogStream::operator<<(ara::core::Span<const ara::core::Byte> data) no
 LogStream& LogStream::operator<<(const std::vector<std::uint8_t>& data) noexcept
 {
     std::ostringstream stream;
-    for (const std::uint8_t data_value : data)
+    std::vector<std::uint8_t>::size_type data_index = 0U;
+    const std::vector<std::uint8_t>::size_type data_count = data.size();
+    while (data_index < data_count)
     {
-        AppendHexByte(stream, static_cast<unsigned int>(data_value));
+        AppendHexByte(stream, static_cast<unsigned int>(data[data_index]));
+        ++data_index;
     }
     AppendPayload(stream.str());
     return *this;
@@ -467,11 +476,12 @@ LogStream& LogStream::operator<<(const LogStream& value) noexcept
     return *this;
 }
 
-void LogStream::AppendPayload(const std::string& value) noexcept
+void LogStream::AppendPayload(const std::string& value)
 {
     AppendArgumentText(value, nullptr, nullptr);
 }
-void LogStream::AppendArgumentText(const std::string& value, const char* name, const char* unit) noexcept
+
+void LogStream::AppendArgumentText(const std::string& value, const char* name, const char* unit)
 {
     if (!state_)
     {
@@ -481,15 +491,12 @@ void LogStream::AppendArgumentText(const std::string& value, const char* name, c
     try
     {
         std::string text;
-
         if (name != nullptr)
         {
             static_cast<void>(text.append(name));
             text.push_back(':');
         }
-
         static_cast<void>(text.append(value));
-
         if (unit != nullptr)
         {
             text.push_back(':');
@@ -500,11 +507,10 @@ void LogStream::AppendArgumentText(const std::string& value, const char* name, c
     }
     catch (...)
     {
-        // swallow exception (MISRA)
     }
 }
 
-void LogStream::SetPrivacy(std::uint8_t privacy) noexcept
+void LogStream::SetPrivacy(std::uint8_t privacy)
 {
     if (state_)
     {
@@ -560,72 +566,72 @@ LogStream& operator<<(LogStream& out, const void* value) noexcept
 namespace internal
 {
 
-std::string FormatValue(bool value, Format) noexcept
+std::string FormatValue(bool value, Format)
 {
     return value ? "1" : "0";
 }
 
-std::string FormatValue(std::uint8_t value, Format format) noexcept
+std::string FormatValue(std::uint8_t value, Format format)
 {
     return FormatIntegral<std::uint8_t>(value, format, false);
 }
 
-std::string FormatValue(std::uint16_t value, Format format) noexcept
+std::string FormatValue(std::uint16_t value, Format format)
 {
     return FormatIntegral<std::uint16_t>(value, format, false);
 }
 
-std::string FormatValue(std::uint32_t value, Format format) noexcept
+std::string FormatValue(std::uint32_t value, Format format)
 {
     return FormatIntegral<std::uint32_t>(value, format, false);
 }
 
-std::string FormatValue(std::uint64_t value, Format format) noexcept
+std::string FormatValue(std::uint64_t value, Format format)
 {
     return FormatIntegral<std::uint64_t>(value, format, false);
 }
 
-std::string FormatValue(std::int8_t value, Format format) noexcept
+std::string FormatValue(std::int8_t value, Format format)
 {
     return FormatIntegral<std::int8_t>(value, format, true);
 }
 
-std::string FormatValue(std::int16_t value, Format format) noexcept
+std::string FormatValue(std::int16_t value, Format format)
 {
     return FormatIntegral<std::int16_t>(value, format, true);
 }
 
-std::string FormatValue(std::int32_t value, Format format) noexcept
+std::string FormatValue(std::int32_t value, Format format)
 {
     return FormatIntegral<std::int32_t>(value, format, true);
 }
 
-std::string FormatValue(std::int64_t value, Format format) noexcept
+std::string FormatValue(std::int64_t value, Format format)
 {
     return FormatIntegral<std::int64_t>(value, format, true);
 }
 
-std::string FormatValue(float value, Format format) noexcept
+std::string FormatValue(float value, Format format)
 {
     return FormatFloating(static_cast<double>(value), format);
 }
 
-std::string FormatValue(double value, Format format) noexcept
+std::string FormatValue(double value, Format format)
 {
     return FormatFloating(value, format);
 }
 
-std::string FormatValue(ara::core::StringView value, Format) noexcept
+std::string FormatValue(ara::core::StringView value, Format)
 {
     return value.ToString();
 }
 
-std::string FormatValue(ara::core::Span<const ara::core::Byte> value, Format) noexcept
+std::string FormatValue(ara::core::Span<const ara::core::Byte> value, Format)
 {
     return FormatBytes(value);
 }
 
-std::string FormatValue(const char* value, Format) noexcept
+std::string FormatValue(const char* value, Format)
 {
     return (value == nullptr) ? std::string() : std::string(value);
 }

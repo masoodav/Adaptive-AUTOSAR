@@ -1,24 +1,9 @@
 #include "./logging_framework.h"
 
-#include <deque>
-
 namespace ara
 {
 namespace log
 {
-
-namespace
-{
-
-std::deque<LoggingFramework>& FrameworkStorage()
-{
-    // FIX: avoid static object (MISRA 6-7-1)
-    static std::deque<LoggingFramework>* frameworks =
-        new std::deque<LoggingFramework>();
-    return *frameworks;
-}
-
-} // namespace
 
 LoggingFramework::LoggingFramework(
     const std::shared_ptr<sink::LogSink>& logSink,
@@ -58,14 +43,7 @@ void LoggingFramework::Log(
 {
     if (logger.IsEnabled(logLevel))
     {
-        try
-        {
-            mLogSink->Log(logStream);
-        }
-        catch (...)
-        {
-            // MISRA: no exception propagation
-        }
+        mLogSink->Log(logStream);
     }
 }
 
@@ -85,9 +63,7 @@ LoggingFramework* LoggingFramework::Create(
     {
         std::shared_ptr<sink::LogSink> logSink =
             std::make_shared<sink::ConsoleLogSink>(appId, appDescription);
-
-        FrameworkStorage().push_back(LoggingFramework(logSink, logLevel));
-        return &FrameworkStorage().back();
+        return new LoggingFramework(logSink, logLevel);
     }
 
     throw std::invalid_argument("Unsupported log mode.");
@@ -101,12 +77,10 @@ LoggingFramework* LoggingFramework::Create(
 {
     std::shared_ptr<sink::LogSink> logSink =
         std::make_shared<sink::FileLogSink>(appId, appDescription, filePath);
-
-    FrameworkStorage().push_back(LoggingFramework(logSink, logLevel));
-    return &FrameworkStorage().back();
+    return new LoggingFramework(logSink, logLevel);
 }
 
 LoggingFramework::~LoggingFramework() noexcept = default;
 
-} // namespace log
-} // namespace ara
+}  // namespace log
+}  // namespace ara

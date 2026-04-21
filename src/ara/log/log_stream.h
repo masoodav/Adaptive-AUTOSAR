@@ -26,20 +26,20 @@ class Logger;
 
 namespace internal
 {
-std::string FormatValue(bool value, Format format) noexcept;
-std::string FormatValue(std::uint8_t value, Format format) noexcept;
-std::string FormatValue(std::uint16_t value, Format format) noexcept;
-std::string FormatValue(std::uint32_t value, Format format) noexcept;
-std::string FormatValue(std::uint64_t value, Format format) noexcept;
-std::string FormatValue(std::int8_t value, Format format) noexcept;
-std::string FormatValue(std::int16_t value, Format format) noexcept;
-std::string FormatValue(std::int32_t value, Format format) noexcept;
-std::string FormatValue(std::int64_t value, Format format) noexcept;
-std::string FormatValue(float value, Format format) noexcept;
-std::string FormatValue(double value, Format format) noexcept;
-std::string FormatValue(ara::core::StringView value, Format format) noexcept;
-std::string FormatValue(ara::core::Span<const ara::core::Byte> value, Format format) noexcept;
-std::string FormatValue(const char* value, Format format) noexcept;
+std::string FormatValue(bool value, Format format);
+std::string FormatValue(std::uint8_t value, Format format);
+std::string FormatValue(std::uint16_t value, Format format);
+std::string FormatValue(std::uint32_t value, Format format);
+std::string FormatValue(std::uint64_t value, Format format);
+std::string FormatValue(std::int8_t value, Format format);
+std::string FormatValue(std::int16_t value, Format format);
+std::string FormatValue(std::int32_t value, Format format);
+std::string FormatValue(std::int64_t value, Format format);
+std::string FormatValue(float value, Format format);
+std::string FormatValue(double value, Format format);
+std::string FormatValue(ara::core::StringView value, Format format);
+std::string FormatValue(ara::core::Span<const ara::core::Byte> value, Format format);
+std::string FormatValue(const char* value, Format format);
 }
 
 class LogStream final
@@ -103,9 +103,9 @@ public:
 private:
     explicit LogStream(std::shared_ptr<internal::LogStreamState> state) noexcept;
 
-    void AppendPayload(const std::string& value) noexcept;
-    void AppendArgumentText(const std::string& value, const char* name, const char* unit) noexcept;
-    void SetPrivacy(std::uint8_t privacy) noexcept;
+    void AppendPayload(const std::string& value);
+    void AppendArgumentText(const std::string& value, const char* name, const char* unit);
+    void SetPrivacy(std::uint8_t privacy);
 
     std::shared_ptr<internal::LogStreamState> state_;
 
@@ -139,7 +139,7 @@ namespace internal
 {
 
 template <typename T>
-std::string FormatValue(const T& value, Format) noexcept
+std::string FormatValue(const T& value, Format)
 {
     return std::to_string(value);
 }

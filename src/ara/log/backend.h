@@ -87,8 +87,8 @@ public:
         const std::string& ctx_id,
         const std::string& description,
         bool use_manifest_threshold,
-        LogLevel explicit_threshold) noexcept;
-    Logger& CreateLogger(const std::string& instance_specifier) noexcept;
+        LogLevel explicit_threshold);
+    Logger& CreateLogger(const std::string& instance_specifier);
 
     void Submit(MessageRecord message) noexcept;
     void FlushQueued() noexcept;

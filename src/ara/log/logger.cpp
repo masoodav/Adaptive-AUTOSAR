@@ -18,9 +18,8 @@ namespace
 
 Backend& GetBackendInstance() noexcept
 {
-    // FIX: replace static object with heap allocation
-    static Backend* backend_instance = new Backend();
-    return *backend_instance;
+    static Backend backend_instance;
+    return backend_instance;
 }
 
 }  // namespace
@@ -147,7 +146,7 @@ Logger& Backend::CreateLogger(
     const std::string& ctx_id,
     const std::string& description,
     bool use_manifest_threshold,
-    LogLevel explicit_threshold) noexcept
+    LogLevel explicit_threshold)
 {
     try
     {
@@ -186,7 +185,7 @@ Logger& Backend::CreateLogger(
     }
 }
 
-Logger& Backend::CreateLogger(const std::string& instance_specifier) noexcept
+Logger& Backend::CreateLogger(const std::string& instance_specifier)
 {
     return CreateLogger(instance_specifier, instance_specifier, true, LogLevel::kWarn);
 }
@@ -305,9 +304,12 @@ std::string Backend::MakeConsoleLine(const MessageRecord& message)
     static_cast<void>(stream << '[' << message.ctx_id << "] ");
     static_cast<void>(stream << static_cast<unsigned int>(message.level));
 
-    for (const RenderedArgument& argument : message.arguments)
+    std::vector<RenderedArgument>::size_type argument_index = 0U;
+    const std::vector<RenderedArgument>::size_type argument_count = message.arguments.size();
+    while (argument_index < argument_count)
     {
-        static_cast<void>(stream << ' ' << argument.text);
+        static_cast<void>(stream << ' ' << message.arguments[argument_index].text);
+        ++argument_index;
     }
 
     if (message.has_tag)
