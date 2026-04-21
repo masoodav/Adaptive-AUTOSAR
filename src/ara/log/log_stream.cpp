@@ -1,6 +1,7 @@
 #include "./log_stream.h"
 
 #include <bitset>
+#include <cstdio>
 #include <iomanip>
 #include <limits>
 #include <sstream>
@@ -15,6 +16,62 @@ namespace log
 
 namespace
 {
+
+void AppendHexByte(std::ostringstream& stream, unsigned int value)
+{
+    static_cast<void>(stream << std::hex << std::nouppercase << std::setfill('0') << std::setw(2) << value);
+}
+
+std::string TrimBinaryText(const std::string& text)
+{
+    const std::string::size_type position = text.find('1');
+    if (position == std::string::npos)
+    {
+        return std::string("0");
+    }
+
+    return text.substr(position);
+}
+
+void ApplyIntegralFormat(std::ostringstream& stream, Format format, std::uint16_t precision)
+{
+    switch (format.fmt)
+    {
+    case Fmt::kHex:
+        static_cast<void>(stream << std::hex << std::nouppercase << std::setfill('0') << std::setw(precision));
+        break;
+    case Fmt::kOct:
+        static_cast<void>(stream << std::oct << std::setfill('0') << std::setw(precision));
+        break;
+    case Fmt::kDec:
+    case Fmt::kDefault:
+    default:
+        static_cast<void>(stream << std::dec << std::setfill('0') << std::setw(precision));
+        break;
+    }
+}
+
+void ApplyFloatingFormat(std::ostringstream& stream, Format format)
+{
+    switch (format.fmt)
+    {
+    case Fmt::kDecFloat:
+        static_cast<void>(stream << std::fixed << std::setprecision(format.precision));
+        break;
+    case Fmt::kEngFloat:
+        static_cast<void>(stream << std::scientific << std::setprecision(format.precision));
+        break;
+    case Fmt::kHexFloat:
+        static_cast<void>(stream << std::hexfloat);
+        break;
+    case Fmt::kAutoFloat:
+        static_cast<void>(stream << std::setprecision(format.precision));
+        break;
+    case Fmt::kDefault:
+    default:
+        break;
+    }
+}
 
 std::string LevelToText(LogLevel value) noexcept
 {
@@ -40,7 +97,7 @@ std::string LevelToText(LogLevel value) noexcept
 
 void SubmitSnapshot(const std::shared_ptr<internal::LogStreamState>& state) noexcept
 {
-    if ((!state) || (!state->logger))
+    if ((state == nullptr) || (state->logger == nullptr))
     {
         return;
     }
@@ -48,20 +105,20 @@ void SubmitSnapshot(const std::shared_ptr<internal::LogStreamState>& state) noex
     try
     {
         internal::MessageRecord record;
-        record.ctx_id = state->logger->ctx_id;
-        record.ctx_description = state->logger->ctx_description;
-        record.level = state->level;
+        static_cast<void>(record.ctx_id = state->logger->ctx_id);
+        static_cast<void>(record.ctx_description = state->logger->ctx_description);
+        static_cast<void>(record.level = state->level);
         for (const std::string& argument : state->arguments)
         {
             record.arguments.push_back(internal::RenderedArgument{argument});
         }
-        record.file = state->file;
-        record.line = state->line;
-        record.has_location = state->has_location;
-        record.tag = state->tag;
-        record.has_tag = state->has_tag;
-        record.privacy = state->privacy;
-        record.has_privacy = state->has_privacy;
+        static_cast<void>(record.file = state->file);
+        static_cast<void>(record.line = state->line);
+        static_cast<void>(record.has_location = state->has_location);
+        static_cast<void>(record.tag = state->tag);
+        static_cast<void>(record.has_tag = state->has_tag);
+        static_cast<void>(record.privacy = state->privacy);
+        static_cast<void>(record.has_privacy = state->has_privacy);
         internal::Backend::Instance().Submit(record);
     }
     catch (...)
@@ -82,32 +139,15 @@ std::string FormatIntegral(IntegerType value, Format format, bool signed_value) 
         case Fmt::kBin:
         {
             std::bitset<64U> bits(static_cast<typename std::make_unsigned<IntegerType>::type>(value));
-            std::string text = bits.to_string();
-            std::size_t position = text.find('1');
-            if (position == std::string::npos)
-            {
-                text = "0";
-            }
-            else
-            {
-                text = text.substr(position);
-            }
+            std::string text = TrimBinaryText(bits.to_string());
             if (text.size() < precision)
             {
-                text.insert(0U, precision - text.size(), '0');
+                static_cast<void>(text.insert(0U, precision - text.size(), '0'));
             }
             return text;
         }
-        case Fmt::kHex:
-            static_cast<void>(stream << std::hex << std::nouppercase << std::setfill('0') << std::setw(precision));
-            break;
-        case Fmt::kOct:
-            static_cast<void>(stream << std::oct << std::setfill('0') << std::setw(precision));
-            break;
-        case Fmt::kDec:
-        case Fmt::kDefault:
         default:
-            static_cast<void>(stream << std::dec << std::setfill('0') << std::setw(precision));
+            ApplyIntegralFormat(stream, format, precision);
             break;
         }
 
@@ -132,24 +172,7 @@ std::string FormatFloating(double value, Format format) noexcept
     try
     {
         std::ostringstream stream;
-        switch (format.fmt)
-        {
-        case Fmt::kDecFloat:
-            static_cast<void>(stream << std::fixed << std::setprecision(format.precision));
-            break;
-        case Fmt::kEngFloat:
-            static_cast<void>(stream << std::scientific << std::setprecision(format.precision));
-            break;
-        case Fmt::kHexFloat:
-            static_cast<void>(stream << std::hexfloat);
-            break;
-        case Fmt::kAutoFloat:
-            static_cast<void>(stream << std::setprecision(format.precision));
-            break;
-        case Fmt::kDefault:
-        default:
-            break;
-        }
+        ApplyFloatingFormat(stream, format);
         static_cast<void>(stream << value);
         return stream.str();
     }
@@ -165,14 +188,15 @@ std::string FormatBytes(ara::core::Span<const ara::core::Byte> value) noexcept
     {
         std::ostringstream stream;
         const std::size_t byte_count = value.size();
-        for (std::size_t index = 0U; index < byte_count; ++index)
+        std::size_t index = 0U;
+        while (index < byte_count)
         {
             if (index != 0U)
             {
                 static_cast<void>(stream << '\'');
             }
-            static_cast<void>(stream << std::hex << std::nouppercase << std::setfill('0') << std::setw(2)
-                                     << static_cast<unsigned int>(value[index]));
+            AppendHexByte(stream, static_cast<unsigned int>(value[index]));
+            ++index;
         }
         return stream.str();
     }
@@ -187,9 +211,15 @@ std::string FormatBytes(ara::core::Span<const ara::core::Byte> value) noexcept
 LogStream::LogStream(std::shared_ptr<internal::LogStreamState> state) noexcept : state_(std::move(state)) {}
 
 LogStream::LogStream() noexcept
-    : state_(std::make_shared<internal::LogStreamState>(
-          std::shared_ptr<internal::LoggerState>(), LogLevel::kOff))
+    : state_()
 {
+    try
+    {
+        state_ = std::make_shared<internal::LogStreamState>(std::shared_ptr<internal::LoggerState>(), LogLevel::kOff);
+    }
+    catch (...)
+    {
+    }
 }
 
 LogStream::LogStream(LogStream&& other) noexcept : state_(std::move(other.state_)) {}
@@ -204,16 +234,22 @@ LogStream::~LogStream() noexcept
 
 void LogStream::Flush() noexcept
 {
-    if (state_ && (!state_->logger))
+    if ((state_ != nullptr) && (state_->logger == nullptr))
     {
-        state_->arguments.clear();
-        state_->file.clear();
-        state_->line = 0;
-        state_->has_location = false;
-        state_->tag.clear();
-        state_->has_tag = false;
-        state_->privacy = 0U;
-        state_->has_privacy = false;
+        try
+        {
+            state_->arguments.clear();
+            state_->file.clear();
+            state_->line = 0;
+            state_->has_location = false;
+            state_->tag.clear();
+            state_->has_tag = false;
+            state_->privacy = 0U;
+            state_->has_privacy = false;
+        }
+        catch (...)
+        {
+        }
         return;
     }
 
@@ -297,9 +333,9 @@ LogStream& LogStream::WithLocation(ara::core::StringView file, int line) noexcep
     {
         if (state_)
         {
-            state_->file = file.ToString();
-            state_->line = line;
-            state_->has_location = true;
+            static_cast<void>(state_->file = file.ToString());
+            static_cast<void>(state_->line = line);
+            static_cast<void>(state_->has_location = true);
         }
     }
     catch (...)
@@ -314,8 +350,8 @@ LogStream& LogStream::WithTag(ara::core::StringView tag) noexcept
     {
         if (state_)
         {
-            state_->tag = tag.ToString();
-            state_->has_tag = true;
+            static_cast<void>(state_->tag = tag.ToString());
+            static_cast<void>(state_->has_tag = true);
         }
     }
     catch (...)
@@ -417,11 +453,9 @@ LogStream& LogStream::operator<<(ara::core::Span<const ara::core::Byte> data) no
 LogStream& LogStream::operator<<(const std::vector<std::uint8_t>& data) noexcept
 {
     std::ostringstream stream;
-    const std::vector<std::uint8_t>::size_type data_size = data.size();
-    for (std::vector<std::uint8_t>::size_type index = 0U; index < data_size; ++index)
+    for (const std::uint8_t data_value : data)
     {
-        static_cast<void>(stream << std::hex << std::nouppercase << std::setfill('0') << std::setw(2)
-                                 << static_cast<unsigned int>(data[index]));
+        AppendHexByte(stream, static_cast<unsigned int>(data_value));
     }
     AppendPayload(stream.str());
     return *this;
@@ -450,14 +484,14 @@ void LogStream::AppendArgumentText(const std::string& value, const char* name, c
         std::string text;
         if (name != nullptr)
         {
-            text.append(name);
+            static_cast<void>(text.append(name));
             text.push_back(':');
         }
-        text.append(value);
+        static_cast<void>(text.append(value));
         if (unit != nullptr)
         {
             text.push_back(':');
-            text.append(unit);
+            static_cast<void>(text.append(unit));
         }
 
         state_->arguments.push_back(text);
@@ -484,9 +518,16 @@ LogStream& operator<<(LogStream& out, LogLevel value) noexcept
 
 LogStream& operator<<(LogStream& out, const ara::core::ErrorCode& ec) noexcept
 {
-    std::ostringstream stream;
-    static_cast<void>(stream << ec.Domain().Name() << ':' << ec.Value());
-    out.AppendPayload(stream.str());
+    try
+    {
+        std::string error_text(ec.Domain().Name());
+        error_text.push_back(':');
+        static_cast<void>(error_text.append(std::to_string(ec.Value())));
+        out.AppendPayload(error_text);
+    }
+    catch (...)
+    {
+    }
     return out;
 }
 
@@ -498,9 +539,18 @@ LogStream& operator<<(LogStream& out, const ara::core::InstanceSpecifier& value)
 
 LogStream& operator<<(LogStream& out, const void* value) noexcept
 {
-    std::ostringstream stream;
-    static_cast<void>(stream << value);
-    out.AppendPayload(stream.str());
+    try
+    {
+        char pointer_text[(sizeof(void*) * 2U) + 3U];
+        const int written = std::snprintf(pointer_text, sizeof(pointer_text), "%p", value);
+        if (written > 0)
+        {
+            out.AppendPayload(std::string(pointer_text));
+        }
+    }
+    catch (...)
+    {
+    }
     return out;
 }
 

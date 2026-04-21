@@ -9,7 +9,11 @@ namespace log
 
 namespace
 {
-    std::deque<LoggingFramework> g_frameworks;
+std::deque<LoggingFramework>& FrameworkStorage()
+{
+    static std::deque<LoggingFramework> frameworks;
+    return frameworks;
+}
 }
 
 // Constructor
@@ -77,8 +81,8 @@ LoggingFramework* LoggingFramework::Create(
             std::make_shared<sink::ConsoleLogSink>(appId, appDescription);
 
         // ✅ FIX: avoid emplace_back (private ctor issue)
-        g_frameworks.push_back(LoggingFramework(logSink, logLevel));
-        return &g_frameworks.back();
+        FrameworkStorage().push_back(LoggingFramework(logSink, logLevel));
+        return &FrameworkStorage().back();
     }
 
     throw std::invalid_argument("Unsupported log mode.");
@@ -95,8 +99,8 @@ LoggingFramework* LoggingFramework::Create(
         std::make_shared<sink::FileLogSink>(appId, appDescription, filePath);
 
     // ✅ FIX: avoid emplace_back (private ctor issue)
-    g_frameworks.push_back(LoggingFramework(logSink, logLevel));
-    return &g_frameworks.back();
+    FrameworkStorage().push_back(LoggingFramework(logSink, logLevel));
+    return &FrameworkStorage().back();
 }
 
 // Destructor

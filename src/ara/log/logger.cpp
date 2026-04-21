@@ -13,7 +13,16 @@ namespace log
 
 namespace internal
 {
-Backend g_backend_instance;
+namespace
+{
+
+Backend& GetBackendInstance() noexcept
+{
+    static Backend backend_instance;
+    return backend_instance;
+}
+
+}  // namespace
 }
 
 Logger::Logger(std::shared_ptr<internal::LoggerState> state) noexcept : state_(std::move(state)) {}
@@ -123,7 +132,7 @@ namespace internal
 
 Backend& Backend::Instance() noexcept
 {
-    return g_backend_instance;
+    return GetBackendInstance();
 }
 
 Backend::Backend() noexcept
@@ -160,14 +169,15 @@ Logger& Backend::CreateLogger(
     catch (...)
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        std::map<std::string, Logger>::iterator fallback_it = loggers_.find("LOGF");
+        const std::string fallback_ctx_id("LOGF");
+        std::map<std::string, Logger>::iterator fallback_it = loggers_.find(fallback_ctx_id);
         if (fallback_it == loggers_.end())
         {
             std::shared_ptr<LoggerState> fallback_state =
-                std::make_shared<LoggerState>("LOGF", "Fallback logger", LogLevel::kOff);
-            logger_states_.insert(std::make_pair("LOGF", fallback_state));
+                std::make_shared<LoggerState>(fallback_ctx_id, "Fallback logger", LogLevel::kOff);
+            logger_states_.insert(std::make_pair(fallback_ctx_id, fallback_state));
             fallback_it = loggers_.emplace(std::piecewise_construct,
-                                           std::forward_as_tuple("LOGF"),
+                                           std::forward_as_tuple(fallback_ctx_id),
                                            std::forward_as_tuple(fallback_state))
                               .first;
         }
@@ -232,7 +242,7 @@ void Backend::FlushQueued() noexcept
 void Backend::RegisterConnectionStateHandler(ConnectionStateHandler callback) noexcept
 {
     std::lock_guard<std::mutex> lock(mutex_);
-    connection_handler_ = std::move(callback);
+    static_cast<void>(connection_handler_ = std::move(callback));
 }
 
 void Backend::SetConnectionState(ClientState state) noexcept
@@ -241,7 +251,7 @@ void Backend::SetConnectionState(ClientState state) noexcept
     {
         std::lock_guard<std::mutex> lock(mutex_);
         connection_state_ = state;
-        callback = connection_handler_;
+        static_cast<void>(callback = connection_handler_);
     }
 
     if (callback)
@@ -279,7 +289,7 @@ void Backend::ResetForTesting() noexcept
     queue_size_ = 64U;
     processing_enabled_ = true;
     connection_state_ = ClientState::kNotConnected;
-    connection_handler_ = ConnectionStateHandler();
+    static_cast<void>(connection_handler_ = ConnectionStateHandler());
 }
 
 std::vector<std::string> Backend::SnapshotConsoleLines() const
@@ -294,10 +304,9 @@ std::string Backend::MakeConsoleLine(const MessageRecord& message)
     static_cast<void>(stream << '[' << message.ctx_id << "] ");
     static_cast<void>(stream << static_cast<unsigned int>(message.level));
 
-    const std::vector<RenderedArgument>::size_type argument_count = message.arguments.size();
-    for (std::vector<RenderedArgument>::size_type index = 0U; index < argument_count; ++index)
+    for (const RenderedArgument& argument : message.arguments)
     {
-        static_cast<void>(stream << ' ' << message.arguments[index].text);
+        static_cast<void>(stream << ' ' << argument.text);
     }
 
     if (message.has_tag)
