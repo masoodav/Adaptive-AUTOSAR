@@ -306,7 +306,7 @@ target_compile_options(ara_log PRIVATE
     # --- Security / Hardening (Adaptive AUTOSAR runs on POSIX-like OS) ---
     -fstack-protector-strong
     -Wformat=2
-    -D_FORTIFY_SOURCE=0
+    -D_FORTIFY_SOURCE=2
     -fpie
     -fPIC
     -fstack-clash-protection
