@@ -261,6 +261,51 @@ add_library(
   ${source_ara_log_sink_dir}/log_sink.cpp
 )
 
+target_compile_features(ara_log PUBLIC cxx_std_14)
+
+target_compile_options(ara_log PRIVATE
+    # --- Base Strictness ---
+    -Wall
+    -Wextra
+    -Wpedantic
+    -Werror
+
+    # --- MISRA / Logic / Determinism ---
+    -Werror=vla
+    -Wconversion
+    -Wsign-conversion
+    -Wshadow
+    -Wcast-align
+    -Wcast-qual
+    -Wundef
+    -Wimplicit-fallthrough
+    -Wswitch-enum
+    -Wuninitialized
+    -Wmissing-declarations
+    -Wredundant-decls
+    -Wdouble-promotion
+    -Werror=return-type
+    -Wpointer-arith
+    -Wlogical-op
+
+    # --- Security / Hardening (Adaptive AUTOSAR runs on POSIX-like OS) ---
+    -fstack-protector-strong
+    -Wformat=2
+    -D_FORTIFY_SOURCE=2
+    -fpie
+    -fPIC
+    -fstack-clash-protection
+
+    # --- Standards & Linker Safety ---
+    -fno-common
+    -ffunction-sections
+    -fdata-sections
+
+    # --- Optimization for determinism ---
+    -fno-strict-aliasing
+    -fwrapv
+)
+
 add_library(
   ara_com
   ${source_ara_com_cg_dir}/communication_group_client.h
