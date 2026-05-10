@@ -77,6 +77,11 @@ struct LogStreamState final
     bool has_privacy;
 };
 
+// Tags: [SWS_LOG_00002] [SWS_LOG_00005] [SWS_LOG_00006] [SWS_LOG_00021]
+// [SWS_LOG_00123] [SWS_LOG_00130] [SWS_LOG_00228] [SWS_LOG_00229]
+// [SWS_LOG_00230] [SWS_LOG_00231] [SWS_LOG_00253] [SWS_LOG_00254]
+// [SWS_LOG_00259] [SWS_LOG_00260] [SWS_LOG_00261] [SWS_LOG_00262]
+// [SWS_LOG_00263] [SWS_LOG_00265]
 class Backend final
 {
 public:

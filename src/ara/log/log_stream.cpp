@@ -95,6 +95,7 @@ std::string LevelToText(LogLevel value) noexcept
     }
 }
 
+// Tags: [SWS_LOG_00002] [SWS_LOG_00259] [SWS_LOG_00260]
 void SubmitSnapshot(const std::shared_ptr<internal::LogStreamState>& state) noexcept
 {
     if ((state == nullptr) || (state->logger == nullptr))
@@ -129,6 +130,10 @@ void SubmitSnapshot(const std::shared_ptr<internal::LogStreamState>& state) noex
     }
 }
 
+// Tags: [SWS_LOG_00172] [SWS_LOG_00173] [SWS_LOG_00174] [SWS_LOG_00175]
+// [SWS_LOG_00176] [SWS_LOG_00177] [SWS_LOG_00201] [SWS_LOG_00203]
+// [SWS_LOG_00204] [SWS_LOG_00205] [SWS_LOG_00206] [SWS_LOG_00207]
+// [SWS_LOG_00256]
 template <typename IntegerType>
 std::string FormatIntegral(IntegerType value, Format format, bool signed_value)
 {
@@ -235,6 +240,7 @@ LogStream::~LogStream() noexcept
     }
 }
 
+// Tags: [SWS_LOG_00018] [SWS_LOG_00259] [SWS_LOG_00260]
 void LogStream::Flush() noexcept
 {
     if ((state_ != nullptr) && (state_->logger == nullptr))
@@ -333,6 +339,7 @@ std::string LogStream::ToString() const
     return stream.str();
 }
 
+// Tags: [SWS_LOG_00221] [SWS_LOG_00222]
 LogStream& LogStream::WithLocation(ara::core::StringView file, int line) noexcept
 {
     try
@@ -350,6 +357,7 @@ LogStream& LogStream::WithLocation(ara::core::StringView file, int line) noexcep
     return *this;
 }
 
+// Tags: [SWS_LOG_00215] [SWS_LOG_00216]
 LogStream& LogStream::WithTag(ara::core::StringView tag) noexcept
 {
     try
@@ -366,6 +374,10 @@ LogStream& LogStream::WithTag(ara::core::StringView tag) noexcept
     return *this;
 }
 
+// Tags: [SWS_LOG_00047] [SWS_LOG_00048] [SWS_LOG_00049] [SWS_LOG_00050]
+// [SWS_LOG_00051] [SWS_LOG_00062] [SWS_LOG_00064] [SWS_LOG_00065]
+// [SWS_LOG_00066] [SWS_LOG_00067] [SWS_LOG_00068] [SWS_LOG_00069]
+// [SWS_LOG_00070]
 LogStream& LogStream::operator<<(bool value) noexcept
 {
     AppendPayload(value ? "1" : "0");
@@ -432,6 +444,8 @@ LogStream& LogStream::operator<<(double value) noexcept
     return *this;
 }
 
+// Tags: [SWS_LOG_00209] [SWS_LOG_00210] [SWS_LOG_00211] [SWS_LOG_00212]
+// [SWS_LOG_00213] [SWS_LOG_00214]
 LogStream& LogStream::operator<<(const std::string& value) noexcept
 {
     AppendPayload(value);
@@ -510,6 +524,7 @@ void LogStream::AppendArgumentText(const std::string& value, const char* name, c
     }
 }
 
+// Tags: [SWS_LOG_00217] [SWS_LOG_00218]
 void LogStream::SetPrivacy(std::uint8_t privacy)
 {
     if (state_)
@@ -525,6 +540,7 @@ LogStream& operator<<(LogStream& out, LogLevel value) noexcept
     return out;
 }
 
+// Tags: [SWS_LOG_00223] [SWS_LOG_00224] [SWS_LOG_00225] [SWS_LOG_00226]
 LogStream& operator<<(LogStream& out, const ara::core::ErrorCode& ec) noexcept
 {
     try

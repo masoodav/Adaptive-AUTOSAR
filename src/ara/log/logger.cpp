@@ -34,6 +34,8 @@ bool Logger::IsEnabled(LogLevel logLevel) const noexcept
     return internal::Backend::Instance().IsEnabled(state_, logLevel);
 }
 
+// Tags: [SWS_LOG_00007] [SWS_LOG_00008] [SWS_LOG_00009] [SWS_LOG_00010]
+// [SWS_LOG_00011] [SWS_LOG_00012] [SWS_LOG_00013]
 LogStream Logger::LogDebug() const noexcept
 {
     return WithLevel(LogLevel::kDebug);
@@ -69,6 +71,7 @@ void Logger::SetThreshold(LogLevel threshold) noexcept
     internal::Backend::Instance().SetThreshold(state_, threshold);
 }
 
+// Tags: [SWS_LOG_00002] [SWS_LOG_00021]
 LogStream Logger::WithLevel(LogLevel logLevel) const noexcept
 {
     try
@@ -81,6 +84,8 @@ LogStream Logger::WithLevel(LogLevel logLevel) const noexcept
     }
 }
 
+// Tags: [SWS_LOG_00005] [SWS_LOG_00006] [SWS_LOG_00098] [SWS_LOG_00253]
+// [SWS_LOG_00254]
 Logger& CreateLogger(const ara::core::InstanceSpecifier& is) noexcept
 {
     try
@@ -122,6 +127,7 @@ Logger& CreateLogger(
     }
 }
 
+// Tags: [SWS_LOG_00255] [SWS_LOG_00261] [SWS_LOG_00262] [SWS_LOG_00263]
 void RegisterConnectionStateHandler(ConnectionStateHandler callback) noexcept
 {
     internal::Backend::Instance().RegisterConnectionStateHandler(std::move(callback));
@@ -142,6 +148,8 @@ Backend::Backend() noexcept
 {
 }
 
+// Tags: [SWS_LOG_00005] [SWS_LOG_00006] [SWS_LOG_00130] [SWS_LOG_00253]
+// [SWS_LOG_00254]
 Logger& Backend::CreateLogger(
     const std::string& ctx_id,
     const std::string& description,
@@ -190,18 +198,22 @@ Logger& Backend::CreateLogger(const std::string& instance_specifier)
     return CreateLogger(instance_specifier, instance_specifier, true, LogLevel::kWarn);
 }
 
+// Tags: [SWS_LOG_00021]
 bool Backend::IsEnabled(const std::shared_ptr<LoggerState>& state, LogLevel level) const noexcept
 {
     std::lock_guard<std::mutex> lock(mutex_);
     return IsEnabledForThreshold(state->threshold, level);
 }
 
+// Tags: [SWS_LOG_00039] [SWS_LOG_00040] [SWS_LOG_00063]
 void Backend::SetThreshold(const std::shared_ptr<LoggerState>& state, LogLevel level) noexcept
 {
     std::lock_guard<std::mutex> lock(mutex_);
     state->threshold = level;
 }
 
+// Tags: [SWS_LOG_00002] [SWS_LOG_00123] [SWS_LOG_00228] [SWS_LOG_00229]
+// [SWS_LOG_00230] [SWS_LOG_00231] [SWS_LOG_00259] [SWS_LOG_00260]
 void Backend::Submit(MessageRecord message) noexcept
 {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -229,6 +241,7 @@ void Backend::Submit(MessageRecord message) noexcept
     console_lines_.push_back(MakeConsoleLine(message));
 }
 
+// Tags: [SWS_LOG_00259] [SWS_LOG_00260]
 void Backend::FlushQueued() noexcept
 {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -239,12 +252,14 @@ void Backend::FlushQueued() noexcept
     }
 }
 
+// Tags: [SWS_LOG_00261] [SWS_LOG_00262] [SWS_LOG_00263]
 void Backend::RegisterConnectionStateHandler(ConnectionStateHandler callback) noexcept
 {
     std::lock_guard<std::mutex> lock(mutex_);
     static_cast<void>(connection_handler_ = std::move(callback));
 }
 
+// Tags: [SWS_LOG_00261] [SWS_LOG_00262] [SWS_LOG_00263]
 void Backend::SetConnectionState(ClientState state) noexcept
 {
     ConnectionStateHandler callback;

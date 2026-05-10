@@ -115,6 +115,10 @@ constexpr Format Oct(std::uint16_t precision) noexcept
     return Format{Fmt::kOct, precision};
 }
 
+// Tags: [SWS_LOG_00172] [SWS_LOG_00173] [SWS_LOG_00174] [SWS_LOG_00175]
+// [SWS_LOG_00176] [SWS_LOG_00177] [SWS_LOG_00201] [SWS_LOG_00203]
+// [SWS_LOG_00204] [SWS_LOG_00205] [SWS_LOG_00206] [SWS_LOG_00207]
+// [SWS_LOG_00256]
 template <typename T>
 class Argument final
 {
@@ -208,6 +212,8 @@ Argument<typename std::decay<T>::type> Arg(
 
 class Logger;
 
+// Tags: [SWS_LOG_00005] [SWS_LOG_00006] [SWS_LOG_00098] [SWS_LOG_00253]
+// [SWS_LOG_00254]
 Logger& CreateLogger(const ara::core::InstanceSpecifier& is) noexcept;
 Logger& CreateLogger(ara::core::StringView ctxId, ara::core::StringView ctxDescription) noexcept;
 Logger& CreateLogger(
@@ -215,6 +221,7 @@ Logger& CreateLogger(
     ara::core::StringView ctxDescription,
     LogLevel ctxDefLogLevel) noexcept;
 
+// Tags: [SWS_LOG_00125] [SWS_LOG_00126] [SWS_LOG_00127]
 class Logger final
 {
 public:
@@ -242,11 +249,14 @@ public:
         return ara::log::CreateLogger(ctxId, ctxDescription, ctxDefLogLevel);
     }
 
+    // Tags: [SWS_LOG_00018] [SWS_LOG_00021]
     bool IsEnabled(LogLevel logLevel) const noexcept;
 
     template <typename MsgId, typename... Params>
     void Log(const MsgId& id, const Params&... args) noexcept;
 
+    // Tags: [SWS_LOG_00041] [SWS_LOG_00042] [SWS_LOG_00043]
+    // [SWS_LOG_00044] [SWS_LOG_00045] [SWS_LOG_00046]
     LogStream LogDebug() const noexcept;
     LogStream LogError() const noexcept;
     LogStream LogFatal() const noexcept;
@@ -257,6 +267,8 @@ public:
     template <typename... Attrs, typename MsgId, typename... Params>
     void LogWith(const std::tuple<Attrs...>& attrs, const MsgId& msgId, const Params&... params) noexcept;
 
+    // Tags: [SWS_LOG_00039] [SWS_LOG_00040] [SWS_LOG_00063]
+    // [SWS_LOG_00259] [SWS_LOG_00260]
     void SetThreshold(LogLevel threshold) noexcept;
     LogStream WithLevel(LogLevel logLevel) const noexcept;
 
@@ -273,6 +285,7 @@ private:
     friend class internal::Backend;
 };
 
+// Tags: [SWS_LOG_00255] [SWS_LOG_00261] [SWS_LOG_00262] [SWS_LOG_00263]
 void RegisterConnectionStateHandler(ConnectionStateHandler callback) noexcept;
 
 }  // namespace log
@@ -288,6 +301,7 @@ namespace log
 template <typename MsgId, typename... Params>
 void Logger::Log(const MsgId& id, const Params&... args) noexcept
 {
+    // Tags: [SWS_LOG_00228] [SWS_LOG_00229] [SWS_LOG_00230] [SWS_LOG_00231]
     LogStream stream = WithLevel(LogLevel::kInfo);
     static_cast<void>(stream << id);
     int dummy[] = {0, ((stream << args), 0)...};
@@ -318,6 +332,8 @@ struct TupleAppender<0U, Attrs...> final
 template <typename... Attrs, typename MsgId, typename... Params>
 void Logger::LogWith(const std::tuple<Attrs...>& attrs, const MsgId& msgId, const Params&... params) noexcept
 {
+    // Tags: [SWS_LOG_00123] [SWS_LOG_00124] [SWS_LOG_00128] [SWS_LOG_00129]
+    // [SWS_LOG_00130] [SWS_LOG_00131] [SWS_LOG_00132] [SWS_LOG_00133]
     LogStream stream = WithLevel(LogLevel::kInfo);
     internal::TupleAppender<sizeof...(Attrs), Attrs...>::Append(stream, attrs);
     static_cast<void>(stream << msgId);
