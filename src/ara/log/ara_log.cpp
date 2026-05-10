@@ -1,4 +1,4 @@
-#include "./logger.h"
+#include "ara/log/logger.h"
 #include <iostream>
 #include <mutex>
 #include <map>
@@ -44,6 +44,7 @@ private:
 LoggerManager LoggerManager::instance_;
 
 // --- Logger ---
+// [SWS_LOG_00006] Instance created with context ID, description, threshold
 Logger::Logger(const std::string& ctxId, const std::string& ctxDesc, LogLevel level)
     : contextId_(ctxId), contextDescription_(ctxDesc), currentLimit_(level), logHandler_(nullptr) {}
 
@@ -53,32 +54,43 @@ Logger::Logger(Logger&& other) noexcept
       currentLimit_(other.currentLimit_.load()),
       logHandler_(std::move(other.logHandler_)) {}
 
+// [SWS_LOG_00260] Destructor
 Logger::~Logger() {}
 
 void Logger::SetLogHandler(LogHandler handler) { 
     logHandler_ = handler; 
 }
 
+// [SWS_LOG_00070] IsEnabled
 bool Logger::IsEnabled(LogLevel logLevel) const noexcept {
     return static_cast<int>(logLevel) <= static_cast<int>(currentLimit_.load());
 }
 
+// [SWS_LOG_00255] SetThreshold
 void Logger::SetThreshold(LogLevel threshold) noexcept { 
     currentLimit_.store(threshold); 
 }
 
+// [SWS_LOG_00130] / [SWS_LOG_00131] WithLevel
 LogStream Logger::WithLevel(LogLevel logLevel) const noexcept {
     bool active = IsEnabled(logLevel);
     return LogStream(logLevel, contextId_, active, logHandler_);
 }
 
+// [SWS_LOG_00064] LogFatal
 LogStream Logger::LogFatal() const noexcept   { return WithLevel(LogLevel::kFatal); }
+// [SWS_LOG_00065] LogError
 LogStream Logger::LogError() const noexcept   { return WithLevel(LogLevel::kError); }
+// [SWS_LOG_00066] LogWarn
 LogStream Logger::LogWarn() const noexcept    { return WithLevel(LogLevel::kWarn); }
+// [SWS_LOG_00067] LogInfo
 LogStream Logger::LogInfo() const noexcept    { return WithLevel(LogLevel::kInfo); }
+// [SWS_LOG_00068] LogDebug
 LogStream Logger::LogDebug() const noexcept   { return WithLevel(LogLevel::kDebug); }
+// [SWS_LOG_00069] LogVerbose
 LogStream Logger::LogVerbose() const noexcept { return WithLevel(LogLevel::kVerbose); }
 
+// [SWS_LOG_00021] / [SWS_LOG_00263] CreateLogger
 Logger& CreateLogger(core::StringView ctxId, core::StringView ctxDescription, LogLevel ctxDefLogLevel) noexcept {
     try 
     { 
@@ -92,10 +104,12 @@ Logger& CreateLogger(core::StringView ctxId, core::StringView ctxDescription, Lo
     }
 }
 
+// [SWS_LOG_00256] CreateLogger
 Logger& CreateLogger(const core::InstanceSpecifier& is) noexcept {
     return CreateLogger(core::StringView(is.ToString().c_str()), "From InstanceSpecifier", LogLevel::kWarn);
 }
 
+// [SWS_LOG_00205] RegisterConnectionStateHandler
 void RegisterConnectionStateHandler(ConnectionStateHandler callback) noexcept {
     static_cast<void>(callback); 
 }
@@ -108,6 +122,7 @@ LogStream::LogStream(LogLevel level, const std::string& ctxId, bool active, LogH
 LogStream::LogStream() noexcept 
     : level_(LogLevel::kOff), ctxId_("INTERNAL"), active_(true), first_arg_(true), logHandler_(nullptr) {}
 
+// [SWS_LOG_00176] Move Constructor
 LogStream::LogStream(LogStream&& other) noexcept 
     : level_(other.level_), ctxId_(std::move(other.ctxId_)), 
       active_(other.active_), first_arg_(other.first_arg_),
@@ -117,6 +132,7 @@ LogStream::LogStream(LogStream&& other) noexcept
     other.active_ = false;
 }
 
+// [SWS_LOG_00262] Destructor
 LogStream::~LogStream() noexcept {
     // MISRA 18-4-1: Destructor must not throw.
     try {
@@ -129,6 +145,7 @@ LogStream::~LogStream() noexcept {
     }
 }
 
+// [SWS_LOG_00039] Flush
 void LogStream::Flush() noexcept {
     try {
         if (!active_) 
@@ -186,6 +203,7 @@ void LogStream::AddSeparator() {
     first_arg_ = false; 
 }
 
+// [SWS_LOG_00129] WithLocation
 LogStream& LogStream::WithLocation(core::StringView file, int line) noexcept {
     try 
     { 
@@ -198,6 +216,7 @@ LogStream& LogStream::WithLocation(core::StringView file, int line) noexcept {
     return *this;
 }
 
+// [SWS_LOG_00132] WithTag
 LogStream& LogStream::WithTag(core::StringView tag) noexcept {
     try 
     { 
@@ -210,16 +229,19 @@ LogStream& LogStream::WithTag(core::StringView tag) noexcept {
     return *this;
 }
 
+// [SWS_LOG_00062] StringView
 LogStream& LogStream::operator<<(const core::StringView value) noexcept {
     try { if (active_) { AddSeparator(); static_cast<void>(buffer_ << value.data()); } } catch(...) {}
     return *this;
 }
 
+// [SWS_LOG_00051] char*
 LogStream& LogStream::operator<<(const char* const value) noexcept {
     try { if (active_) { AddSeparator(); static_cast<void>(buffer_ << value); } } catch(...) {}
     return *this;
 }
 
+// [SWS_LOG_00127] void*
 LogStream& LogStream::operator<<(const void* value) noexcept {
     try { if (active_) { AddSeparator(); static_cast<void>(buffer_ << value); } } catch(...) {}
     return *this;
@@ -230,21 +252,25 @@ LogStream& LogStream::operator<<(const std::string& value) noexcept {
     return *this;
 }
 
+// [SWS_LOG_00063] LogLevel
 LogStream& LogStream::operator<<(LogLevel value) noexcept {
     try { if (active_) { AddSeparator(); static_cast<void>(buffer_ << static_cast<int>(value)); } } catch(...) {}
     return *this;
 }
 
+// [SWS_LOG_00124] ErrorCode
 LogStream& LogStream::operator<<(const core::ErrorCode& ec) noexcept {
     try { if (active_) { AddSeparator(); static_cast<void>(buffer_ << "Error:" << ec.Value()); } } catch(...) {}
     return *this;
 }
 
+// [SWS_LOG_00126] InstanceSpecifier
 LogStream& LogStream::operator<<(const core::InstanceSpecifier& value) noexcept {
     try { if (active_) { AddSeparator(); static_cast<void>(buffer_ << value.ToString()); } } catch(...) {}
     return *this;
 }
 
+// [SWS_LOG_00128] Span
 LogStream& LogStream::operator<<(core::Span<const core::Byte> data) noexcept {
     try {
         if (active_) {
